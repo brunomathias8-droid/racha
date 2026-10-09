@@ -64,11 +64,18 @@ Na aba **Config** da planilha, preencha **uma** das opções:
 | Claude | `claude` | chave criada em console.anthropic.com › API Keys (precisa colocar créditos, mínimo US$ 5) | Alguns centavos de real por PDF; texto e foto do prato custam menos |
 | Gemini | `gemini` | chave criada em aistudio.google.com › Get API key | Grátis dentro da cota diária. No plano grátis, o Google pode usar os dados enviados para melhorar os modelos |
 
-Depois, no Apps Script, execute **testarIA**. Se o registro mostrar "IA ok", está funcionando. A chave sai da planilha e vai para as Propriedades do script no primeiro uso.
+Depois, no Apps Script:
+
+1. Cole a versão nova do `IA.gs` (se ainda não colou) e salve.
+2. Execute **testarIA**. Se o Google pedir autorização, aceite como na parte 1. O teste lê uma frase de comida e um PDF de exemplo. Se o registro terminar em "IA ok", está funcionando. Se der erro, a mensagem diz o que falta (chave recusada, conta sem créditos, modelo errado).
+3. **Implantar › Gerenciar implantações › editar › Versão: Nova versão**. Sem isso, o endereço /exec continua rodando o código antigo.
+4. No app, feche e abra de novo (ou espere uns 30 segundos): o botão **Dieta › Enviar PDF** passa a abrir o seletor de arquivo em vez do aviso "ainda não foi ligada".
+
+A chave sai da planilha e vai para as Propriedades do script no primeiro uso.
 
 Limite de segurança: `ia_limite_dia` (padrão 40 leituras por pessoa por dia).
 
-Modelos: por padrão o Claude usa o Haiku (rápido e barato). Se quiser mais precisão na leitura do PDF, coloque `claude-sonnet-5-5` em `ia_modelo`.
+Modelos: por padrão o Claude usa o Haiku 5.5 (rápido e barato). Se quiser mais precisão na leitura do PDF, coloque `claude-sonnet-5-5` em `ia_modelo`.
 
 ## 4. Notificações (Firebase)
 
@@ -99,6 +106,7 @@ Depois, no Apps Script, execute **ativarAvisos** (cria o gatilho de hora em hora
 | Sintoma | Causa provável |
 |---|---|
 | "Resposta inesperada do servidor" | Implantação não está como "Qualquer pessoa", ou o endereço não termina em /exec |
+| Dieta › Enviar PDF diz que a leitura "ainda não foi ligada" | Falta `ia_provedor` ou `ia_chave` na aba Config, ou a implantação não foi atualizada para a versão nova |
 | Alguém esqueceu o PIN | No Apps Script, rode `redefinirPin('Nome', '1234')` (edite os valores na função antes) |
 | Celular perdido | Rode `encerrarTodasSessoes` |
 | Fechar a entrada de gente nova | Racha › engrenagem › Gerar código novo |

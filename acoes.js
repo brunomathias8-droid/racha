@@ -265,6 +265,7 @@ const A = {
   greencard: () => toast('Cartão verde protege sua sequência num dia sem lance. Ganhe 1 a cada semana em que treinar todos os dias do plano (máximo 3).', 4500),
   hic: d => { S.sheet.ic = d.v; renderSheet(); }, htype: d => { S.sheet.type = d.v; renderSheet(); }, htarget: d => { S.sheet.target = clamp(S.sheet.target + +d.v, 1, 30); renderSheet(); },
   addhabit: () => { const s = S.sheet, n = (s.name || '').trim(); if (!n) { toast('Dê um nome ao hábito'); return; }
+    if (S.habits.length >= N_LIMITES.habitos) { toast(`Máximo de ${N_LIMITES.habitos} hábitos. Apague um para criar outro.`); return; }
     S.habits.push({ id: 'h' + uidNovo(), name: n.slice(0, 40), ic: s.ic, type: s.type, target: s.target, val: 0, streak: 0, wk: [0, 0, 0, 0, 0, 0], photo: null }); closeSheet(); toast(`${n} adicionado`); render(); },
   edithab: () => { S.editHab = !S.editHab; render(); },
   delhabit: d => { const h = S.habits.splice(+d.i, 1)[0]; toast(`${h.name} removido`); if (habDone(h)) habitEvent(); render(); },
@@ -371,7 +372,9 @@ document.addEventListener('change', async e => { const t = e.target, k = t.datas
   try {
     if (k === 'diet') {
       if (file.size > 15 * 1024 * 1024) { toast('Arquivo grande demais (máximo 15 MB).'); return; }
-      const dados = file.type === 'application/pdf' ? await lerArquivo(file) : await comprimir(file, 2000, .85);
+      // Alguns celulares entregam o PDF sem tipo: reconhece pela extensão
+      const pdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      const dados = pdf ? (await lerArquivo(file)).replace(/^data:[^;,]*/, 'data:application/pdf') : await comprimir(file, 2000, .85);
       openSheet({ k: 'upload', step: 'lendo', file: file.name, et: 0 });
       const timer = setInterval(() => { if (!S.sheet || S.sheet.k !== 'upload' || S.sheet.step !== 'lendo') { clearInterval(timer); return; } S.sheet.et++; renderSheet(); }, 7000);
       try { const r = await api('ia', { tipo: 'dieta', arquivo: dados }, { timeout: 330000 }); clearInterval(timer); if (S.sheet && S.sheet.k === 'upload') { S.sheet.step = 'ok'; S.sheet.plano = r.plano; renderSheet(); } }
