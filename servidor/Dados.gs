@@ -220,14 +220,19 @@ function lancarEvento_(s, req) {
   var hoje = hoje_();
   if (e.day > N_somaDias(hoje, 1) || e.day < N_somaDias(hoje, -3)) throw apiErro_('Só dá para lançar lances dos últimos 3 dias.', 'VALIDACAO');
   var id = s.pessoa + '-' + cid, extra = {};
+  if (e.kind === 'habitos') { e.habs = N_habsLance(e.habs); e.hp = N_habsLance(e.hp).filter(function (h) { return e.habs.indexOf(h) >= 0; }); e.perfect = e.perfect === true; }
+  if (e.kind === 'treino') e.prs = Math.max(0, Math.floor(Number(e.prs) || 0));
+  var calc = N_oficial(e), pts = calc.reduce(function (a, l) { return a + l[1]; }, 0); // pontos pela regra, não pelo que o aparelho mandou
   Object.keys(e).forEach(function (k) { if (EV_BASE.indexOf(k) < 0) extra[k] = e[k]; });
   var extraTxt = JSON.stringify(extra);
   if (extraTxt.length > 4000) throw apiErro_('Lance grande demais.', 'VALIDACAO');
   var foto = req.foto ? salvarImagem_(req.foto, 'lance-' + id) : null;
   var r = comLock_(function () {
-    var atual = ler_('Eventos').filter(function (x) { return x.ID === id; })[0], agora = String(Date.now());
+    var evs = ler_('Eventos'), atual = evs.filter(function (x) { return x.ID === id; })[0], agora = String(Date.now());
+    if (!atual && e.kind === 'refeicao' && evs.filter(function (x) { return x.Pessoa === s.pessoa && x.Dia === e.day && x.Tipo === 'refeicao' && x.Excluido !== 'sim'; }).length >= N_LIMITES.refeicoesDia)
+      throw apiErro_('Já são ' + N_LIMITES.refeicoesDia + ' refeições pontuadas neste dia.', 'LIMITE');
     var campos = { ID: id, Pessoa: s.pessoa, Dia: e.day, Hora: String(e.t || '').slice(0, 5), Tipo: String(e.kind || '').slice(0, 20),
-      Texto: String(e.txt || '').slice(0, 200), Pts: String(Math.max(0, Math.min(500, Number(e.pts) || 0))), Calc: JSON.stringify(e.calc || []).slice(0, 2000),
+      Texto: String(e.txt || '').slice(0, 200), Pts: String(pts), Calc: JSON.stringify(calc),
       Ev: e.ev === 'foto' || e.ev === 'relogio' ? e.ev : '', Extra: extraTxt, Chave: String(e.key || '').slice(0, 30), Atualizado: agora };
     if (foto) campos.Foto = foto;
     else if (e.ev === 'foto' && atual && atual.Foto) campos.Foto = atual.Foto;

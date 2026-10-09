@@ -265,6 +265,7 @@ const A = {
   greencard: () => toast('Cartão verde protege sua sequência num dia sem lance. Ganhe 1 a cada semana em que treinar todos os dias do plano (máximo 3).', 4500),
   hic: d => { S.sheet.ic = d.v; renderSheet(); }, htype: d => { S.sheet.type = d.v; renderSheet(); }, htarget: d => { S.sheet.target = clamp(S.sheet.target + +d.v, 1, 30); renderSheet(); },
   addhabit: () => { const s = S.sheet, n = (s.name || '').trim(); if (!n) { toast('Dê um nome ao hábito'); return; }
+    if (S.habits.length >= N_LIMITES.habitos) { toast(`Máximo de ${N_LIMITES.habitos} hábitos. Apague um para criar outro.`); return; }
     S.habits.push({ id: 'h' + uidNovo(), name: n.slice(0, 40), ic: s.ic, type: s.type, target: s.target, val: 0, streak: 0, wk: [0, 0, 0, 0, 0, 0], photo: null }); closeSheet(); toast(`${n} adicionado`); render(); },
   edithab: () => { S.editHab = !S.editHab; render(); },
   delhabit: d => { const h = S.habits.splice(+d.i, 1)[0]; toast(`${h.name} removido`); if (habDone(h)) habitEvent(); render(); },

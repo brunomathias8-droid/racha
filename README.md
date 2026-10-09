@@ -43,8 +43,10 @@ Passo a passo para colocar no ar: [IMPLANTAR.md](IMPLANTAR.md).
 | Corrida ou outro esporte | 35 |
 | Refeição dentro do plano (até 5 por dia) | 5 |
 | Dia dentro dos macros | 25 |
-| Cada hábito cumprido | 5 |
+| Cada hábito cumprido (até 10 hábitos) | 5 |
 | Dia perfeito de hábitos | 15 |
+
+Quem calcula os pontos é o servidor, pela tabela acima (`N_oficial` em `nucleo.js`): o que o aparelho manda como pontuação é ignorado.
 
 Cada 100 pontos do time viram 1 gol (80 no modo competitivo, em que só vale lance com foto). A rodada vai de segunda a domingo.
 
