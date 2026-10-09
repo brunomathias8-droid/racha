@@ -371,7 +371,9 @@ document.addEventListener('change', async e => { const t = e.target, k = t.datas
   try {
     if (k === 'diet') {
       if (file.size > 15 * 1024 * 1024) { toast('Arquivo grande demais (máximo 15 MB).'); return; }
-      const dados = file.type === 'application/pdf' ? await lerArquivo(file) : await comprimir(file, 2000, .85);
+      // Alguns celulares entregam o PDF sem tipo: reconhece pela extensão
+      const pdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      const dados = pdf ? (await lerArquivo(file)).replace(/^data:[^;,]*/, 'data:application/pdf') : await comprimir(file, 2000, .85);
       openSheet({ k: 'upload', step: 'lendo', file: file.name, et: 0 });
       const timer = setInterval(() => { if (!S.sheet || S.sheet.k !== 'upload' || S.sheet.step !== 'lendo') { clearInterval(timer); return; } S.sheet.et++; renderSheet(); }, 7000);
       try { const r = await api('ia', { tipo: 'dieta', arquivo: dados }, { timeout: 330000 }); clearInterval(timer); if (S.sheet && S.sheet.k === 'upload') { S.sheet.step = 'ok'; S.sheet.plano = r.plano; renderSheet(); } }

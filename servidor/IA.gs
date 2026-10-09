@@ -5,7 +5,7 @@
  * Para conferir a configuração, rode testarIA() no editor.
  */
 var IA_PADRAO = {
-  claude: { modelo: 'claude-haiku-4-5-20251001', rapido: 'claude-haiku-4-5-20251001' },
+  claude: { modelo: 'claude-haiku-5-5', rapido: 'claude-haiku-5-5' },
   gemini: { modelo: 'gemini-2.5-flash', rapido: 'gemini-2.5-flash' }
 };
 
@@ -24,11 +24,11 @@ function iaApi_(s, req) {
   if (!iaAtiva_()) throw apiErro_('A leitura por IA ainda não foi ligada no servidor (Config › ia_provedor e ia_chave).', 'CONFIG');
   var cache = CacheService.getScriptCache(), k = 'racha_ia_' + s.pessoa + '_' + hoje_(), n = Number(cache.get(k) || 0);
   if (n >= (Number(cfg_().ia_limite_dia) || 40)) throw apiErro_('Limite de leituras por IA de hoje atingido. Amanhã libera de novo.', 'LIMITE');
-  cache.put(k, String(n + 1), 6 * 3600);
-  if (req.tipo === 'dieta') return iaDieta_(req);
-  if (req.tipo === 'comida') return iaComida_(req);
-  if (req.tipo === 'prato') return iaPrato_(req);
-  throw apiErro_('Tipo de leitura desconhecido.', 'ACAO');
+  var f = { dieta: iaDieta_, comida: iaComida_, prato: iaPrato_ }[req.tipo];
+  if (!f) throw apiErro_('Tipo de leitura desconhecido.', 'ACAO');
+  var r = f(req);
+  cache.put(k, String(n + 1), 6 * 3600); // só conta leitura que deu certo
+  return r;
 }
 
 /* Chaves curtas para a resposta sair rápida: t = texto com quantidade, a = alimento, g = gramas, k = kcal, p/c/f = macros em g, s = substituições */
@@ -56,7 +56,7 @@ function iaDieta_(req) {
     '- Hora no formato HH:MM; se não houver, estime pela ordem (café 07:00, lanche 10:00, almoço 12:30, lanche 16:00, jantar 20:00, ceia 22:00).',
     '- Não invente refeições nem alimentos que não estão no documento.'
   ].join('\n');
-  var r = iaChamar_(false, instr, [arq, { texto: 'Extraia o plano alimentar deste documento.' }], 12000);
+  var r = iaChamar_(false, instr, [arq, { texto: 'Extraia o plano alimentar deste documento.' }], 16000);
   var o = iaJson_(r);
   if (!o || !Array.isArray(o.refeicoes) || !o.refeicoes.length) throw apiErro_('Não consegui achar as refeições neste arquivo. Ele é mesmo um plano alimentar? Se for foto ou escaneado, tente um PDF mais nítido.', 'IA');
   return { plano: iaLimparPlano_(o) };
@@ -128,10 +128,12 @@ function iaChamar_(rapido, instrucao, partes, maxTokens) {
       if (p.mime === 'application/pdf') return { type: 'document', source: { type: 'base64', media_type: p.mime, data: p.b64 } };
       return { type: 'image', source: { type: 'base64', media_type: p.mime, data: p.b64 } };
     });
+    var corpo = { model: modelo, max_tokens: maxTokens, system: instrucao, messages: [{ role: 'user', content: content }] };
+    // Modelos da geração 5 pensam antes de responder; extração de dados não precisa de muito: esforço baixo é mais rápido e barato
+    if (/^claude-[a-z]+-5/.test(modelo)) corpo.output_config = { effort: 'low' };
     url = 'https://api.anthropic.com/v1/messages';
     opt = { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-      headers: { 'x-api-key': chave, 'anthropic-version': '2023-06-01' },
-      payload: JSON.stringify({ model: modelo, max_tokens: maxTokens, system: instrucao, messages: [{ role: 'user', content: content }] }) };
+      headers: { 'x-api-key': chave, 'anthropic-version': '2023-06-01' }, payload: JSON.stringify(corpo) };
   } else {
     url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent';
     opt = { method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-goog-api-key': chave },
@@ -142,14 +144,24 @@ function iaChamar_(rapido, instrucao, partes, maxTokens) {
   var r = UrlFetchApp.fetch(url, opt), code = r.getResponseCode(), txt = r.getContentText();
   if (code !== 200) {
     Logger.log('IA ' + prov + ' ' + code + ': ' + txt.slice(0, 500));
+    var det = '';
+    try { var e = JSON.parse(txt).error || {}; det = String(e.message || '').slice(0, 200); } catch (x) { /* corpo não é JSON */ }
+    if (/credit balance/i.test(det)) throw apiErro_('A conta da IA está sem créditos. Coloque créditos em console.anthropic.com › Billing.', 'IA');
     if (code === 401 || code === 403) throw apiErro_('A chave da IA foi recusada. Confira ia_chave na planilha.', 'IA');
     if (code === 429) throw apiErro_('A IA está sem cota agora. Tente de novo em alguns minutos.', 'IA');
     if (code === 404) throw apiErro_('Modelo de IA não encontrado (' + modelo + '). Ajuste ia_modelo na planilha.', 'IA');
-    throw apiErro_('A IA não respondeu (' + code + '). Tente de novo.', 'IA');
+    if (code === 413) throw apiErro_('Arquivo grande demais para a IA. Tente um PDF menor ou só as páginas do plano.', 'IA');
+    if (code >= 500) throw apiErro_('A IA está sobrecarregada agora. Tente de novo em alguns minutos.', 'IA');
+    throw apiErro_('A IA recusou o pedido (' + code + (det ? ': ' + det : '') + ').', 'IA');
   }
   var o = JSON.parse(txt);
-  if (prov === 'claude') return (o.content || []).map(function (b) { return b.text || ''; }).join('');
+  if (prov === 'claude') {
+    if (o.stop_reason === 'max_tokens') throw apiErro_('O plano é longo demais para ler de uma vez. Tente enviar só as páginas das refeições.', 'IA');
+    if (o.stop_reason === 'refusal') throw apiErro_('A IA não quis ler este arquivo. Tente outro PDF ou monte o plano à mão.', 'IA');
+    return (o.content || []).map(function (b) { return b.type === 'text' ? b.text : ''; }).join('');
+  }
   var cand = (o.candidates || [])[0];
+  if (cand && cand.finishReason === 'MAX_TOKENS') throw apiErro_('O plano é longo demais para ler de uma vez. Tente enviar só as páginas das refeições.', 'IA');
   return cand && cand.content ? (cand.content.parts || []).map(function (p) { return p.text || ''; }).join('') : '';
 }
 
@@ -160,10 +172,18 @@ function iaJson_(t) {
   try { return JSON.parse(t.slice(a, b + 1)); } catch (e) { return null; }
 }
 
-/** Rodar no editor para conferir se a IA está configurada. */
+/** Rodar no editor para conferir se a IA está configurada. Testa o texto de comida e a leitura de um PDF de exemplo. */
 function testarIA() {
   if (!iaAtiva_()) { Logger.log('Falta preencher ia_provedor (claude ou gemini) e ia_chave na aba Config.'); return; }
   var r = iaComida_({ texto: '2 ovos mexidos e 1 pão francês' });
-  Logger.log('IA ok (' + iaProvedor_() + '): ' + JSON.stringify(r));
-  return r;
+  Logger.log('Texto ok (' + iaProvedor_() + '): ' + JSON.stringify(r));
+  var html = '<h2>Plano alimentar</h2><p>Meta diária: 2000 kcal · 150 g proteína · 200 g carboidrato · 60 g gordura</p>' +
+    '<h3>Café da manhã (07:00)</h3><ul><li>2 ovos mexidos</li><li>1 fatia de pão integral</li><li>1 banana</li></ul>' +
+    '<h3>Almoço (12:30)</h3><ul><li>150 g de frango grelhado ou 150 g de peixe</li><li>4 colheres de sopa de arroz</li><li>1 concha de feijão</li><li>Salada à vontade</li></ul>' +
+    '<h3>Jantar (20:00)</h3><ul><li>Omelete de 3 ovos</li><li>Legumes refogados</li></ul>';
+  var pdf = Utilities.newBlob(html, 'text/html', 'teste.html').getAs('application/pdf');
+  var p = iaDieta_({ arquivo: 'data:application/pdf;base64,' + Utilities.base64Encode(pdf.getBytes()) }).plano;
+  Logger.log('PDF ok: ' + p.meals.length + ' refeições, metas ' + JSON.stringify(p.goals));
+  Logger.log('IA ok. A leitura de PDF está ligada no app.');
+  return p;
 }
