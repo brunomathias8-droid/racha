@@ -166,6 +166,17 @@ SH.goals = () => { const g = S.goals || { kcal: 2000, p: 150, c: 200, f: 65 };
   <div class="grid2 num">${inp('gk', 'Calorias', g.kcal, 'inputmode="numeric"')}${inp('gp', 'Proteína (g)', g.p, 'inputmode="numeric"')}${inp('gc', 'Carboidrato (g)', g.c, 'inputmode="numeric"')}${inp('gf', 'Gordura (g)', g.f, 'inputmode="numeric"')}</div>
   <p class="small muted">Use os números da sua nutricionista. ${S.meals.length ? '' : 'Depois de salvar, adicione as refeições na aba Plano.'}</p>
   <button class="btn block" data-a="goalsok">Salvar metas</button>`; };
+SH.mealog = s => { const m = S.meals.find(x => x.id === s.id); if (!m) return head('Dieta', 'Refeição não encontrada');
+  const its = S.log.map((it, li) => ({ it, li })).filter(x => x.it.meal === m.id);
+  return `${head(esc(m.name), 'Editar o que você comeu')}
+  <p class="small muted" id="mealtot">${fmt(its.reduce((a, x) => a + x.it.kcal, 0))} kcal · ${fmt(its.reduce((a, x) => a + x.it.p, 0))} g de proteína</p>
+  <div class="stack" style="gap:10px">${its.map(({ it, li }) => { const g = gramasItem(it);
+    return `<div class="between small" style="gap:8px"><span style="min-width:0">${esc(it.food || it.label)}${g ? '' : ` <span class="muted">· ${esc(it.label)}</span>`}</span>
+      <span class="hrow" style="gap:6px;flex:none">${g ? `<input class="in num" style="width:84px;padding:8px" inputmode="decimal" value="${fmt(g)}" data-i="logg" data-li="${li}" aria-label="Gramas de ${esc(it.food || it.label)}"><span class="tiny muted">g</span>` : ''}
+      <button class="sq" data-a="logdel" data-li="${li}" aria-label="Remover ${esc(it.label)}">${ic('trash', 14)}</button></span></div>`; }).join('') || '<p class="small muted">Nenhum alimento lançado nesta refeição.</p>'}</div>
+  <form data-f="mealadd" class="inrow"><input id="mealaddtxt" class="in" placeholder="Adicionar: 1 banana, 30g aveia" autocomplete="off" aria-label="Adicionar alimento"><button class="btn" type="submit" ${S.iaOcupada ? 'disabled' : ''}>${S.iaOcupada ? 'Lendo…' : 'Adicionar'}</button></form>
+  <p class="tiny muted">Mude os gramas para corrigir a quantidade; as calorias e os macros acompanham.</p>
+  <div class="qa"><button class="btn ghost sm" data-a="mealreopen">Reabrir refeição</button><button class="btn sm" data-a="mealogok" style="margin-left:auto">Pronto</button></div>`; };
 SH.mealedit = s => { const m = S.meals.find(x => x.id === s.id); if (!m) return head('Dieta', 'Refeição não encontrada');
   return `${head('Plano alimentar', 'Editar refeição')}
   <div class="grid2">${inp('mname', 'Nome', m.name)}${inp('mtime', 'Horário', m.time, 'type="time"')}</div>

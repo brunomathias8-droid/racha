@@ -147,11 +147,13 @@ function dietaHoje() {
   ${S.meals.length ? sec('Refeições') : ''}
   <div class="stack">
   ${S.meals.map(m => { const items = S.log.filter(i => i.meal === m.id); return `<div class="panel">
-    <div class="between"><div><p class="eb">${m.time}</p><p class="h3">${esc(m.name)}</p></div>${m.done ? `<span class="chip good">feito · ${fmt(items.reduce((a, i) => a + i.kcal, 0))} kcal${m.photo ? ' · 📷' : ''}</span>` : `<span class="chip">pendente</span>`}</div>
-    ${m.done ? items.map(i => itemLinha(i)).join('')
+    <div class="between"><div><p class="eb">${m.time}</p><p class="h3">${esc(m.name)}</p></div>${m.skip ? `<span class="chip">pulada</span>` : m.done ? `<span class="chip good">feito · ${fmt(items.reduce((a, i) => a + i.kcal, 0))} kcal${m.photo ? ' · 📷' : ''}</span>` : `<span class="chip">pendente</span>`}</div>
+    ${m.skip ? `<p class="small muted">Você pulou esta refeição hoje.</p><div class="qa"><button class="btn ghost sm" data-a="mealreopen" data-id="${m.id}">Desfazer</button></div>`
+      : m.done ? `${items.map(i => itemLinha(i)).join('') || '<p class="small muted">Nenhum alimento lançado.</p>'}
+         <div class="qa"><button class="btn ghost sm" data-a="sheet" data-k="mealog" data-id="${m.id}">${ic('edit', 14)} Editar</button></div>`
       : `<p class="small muted">Plano: ${m.items.map(i => esc(i.label)).join(' · ')}</p>
          ${items.map(i => itemLinha(i, true)).join('')}
-         <div class="qa"><button class="btn sm" data-a="ateplan" data-id="${m.id}">Comi conforme o plano</button><button class="btn ghost sm" data-a="other" data-id="${m.id}">Comi outra coisa</button>${items.length ? `<button class="btn ghost sm" data-a="mealdone" data-id="${m.id}">Fechar refeição</button>` : ''}</div>`}
+         <div class="qa"><button class="btn sm" data-a="ateplan" data-id="${m.id}">Comi conforme o plano</button><button class="btn ghost sm" data-a="other" data-id="${m.id}">Comi outra coisa</button>${items.length ? `<button class="btn ghost sm" data-a="mealdone" data-id="${m.id}">Fechar refeição</button>` : `<button class="btn ghost sm" data-a="mealskip" data-id="${m.id}">Pulei</button>`}</div>`}
   </div>`; }).join('')}
   ${extra.length ? `<div class="panel"><div class="between"><p class="h3">Fora do plano</p><span class="chip">${fmt(extra.reduce((a, i) => a + i.kcal, 0))} kcal</span></div>${extra.map(i => itemLinha(i)).join('')}</div>` : ''}
   </div>

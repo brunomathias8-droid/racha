@@ -314,7 +314,7 @@ function hd(dia) { dia = dia || S.day; return S.hist[dia] || (S.hist[dia] = {});
 function fecharDia(dia) {
   const h = hd(dia), act = S.habits, dn = act.filter(habDone).length, c = consumed();
   h.hab = dn; h.habTot = act.length; h.perfect = act.length > 0 && dn === act.length;
-  h.meals = S.meals.filter(m => m.done).length; h.mealsPlan = S.meals.length;
+  h.meals = S.meals.filter(m => m.done && !m.skip).length; h.mealsPlan = S.meals.length;
   h.diet = !!S.goals; h.macros = !!S.flags.macros; h.prot = !!(S.goals && c.p >= S.goals.p * .9); h.kcal = Math.round(c.kcal);
   const w = S.week[diaIdx(dia)];
   h.planned = !!(w && w.type !== 'rest');
@@ -348,7 +348,7 @@ function virarDia() {
   let d = somaDias(S.day, 1), n = 0;
   while (d < h && n < 40) { fecharDiaVazio(d); sequencia(d); d = somaDias(d, 1); n++; }
   S.habits.forEach(x => { x.val = 0; x.photo = null; });
-  S.meals.forEach(m => { m.done = false; m.photo = null; });
+  S.meals.forEach(m => { m.done = false; m.skip = false; m.photo = null; });
   S.log = []; S.flags = {}; S.sess = {}; S.done = {};
   S.logMeal = S.meals.length ? S.meals[0].id : 'extra';
   S.day = h;
@@ -446,7 +446,7 @@ function calcAttrs() {
     ['Semanas completas', semTot ? `${semOk} de ${semTot} semanas sem faltar treino` : 'Conta a partir da primeira semana fechada', semTot ? pc(semOk, semTot) : .5, .15]];
   // NUT
   const dDiet = J.dias.filter(d => H(d).diet || (d === J.h && temDieta())).length, mac = soma(h => h.macros) + (S.flags.macros && !H(J.h).macros ? 1 : 0), prot = soma(h => h.prot);
-  const ml = soma(h => h.meals) + (H(J.h).meals == null ? S.meals.filter(m => m.done).length : 0), mlP = soma(h => h.mealsPlan) + (H(J.h).mealsPlan == null ? S.meals.length : 0);
+  const ml = soma(h => h.meals) + (H(J.h).meals == null ? S.meals.filter(m => m.done && !m.skip).length : 0), mlP = soma(h => h.mealsPlan) + (H(J.h).mealsPlan == null ? S.meals.length : 0);
   P.NUT = !dDiet ? [['Dias dentro dos macros (±10%)', 'Sem plano alimentar: envie sua dieta em PDF', 0, .5], ['Dias com a proteína batida', 'Sem plano alimentar', 0, .3], ['Refeições registradas', 'Sem plano alimentar', 0, .2]] : [
     ['Dias dentro dos macros (±10%)', `${mac} de ${dDiet} dias`, pc(mac, dDiet), .5],
     ['Dias com a proteína batida', `${prot} de ${dDiet} dias`, pc(prot, dDiet), .3],
