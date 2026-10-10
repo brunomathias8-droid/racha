@@ -26,40 +26,67 @@ function iaApi_(s, req) {
   if (n >= (Number(cfg_().ia_limite_dia) || 40)) throw apiErro_('Limite de leituras por IA de hoje atingido. Amanhã libera de novo.', 'LIMITE');
   var f = { dieta: iaDieta_, comida: iaComida_, prato: iaPrato_ }[req.tipo];
   if (!f) throw apiErro_('Tipo de leitura desconhecido.', 'ACAO');
-  var r = f(req);
+  var t0 = Date.now(), r;
+  try { r = f(req); }
+  catch (e) { iaRegistrar_(s, req, t0, 'erro: ' + (e.message || e)); throw e; }
+  iaRegistrar_(s, req, t0, r.plano ? 'ok: ' + r.plano.meals.length + ' refeições' + (r.plano.faltou ? ', faltou ' + r.plano.faltou : '') : 'ok');
   cache.put(k, String(n + 1), 6 * 3600); // só conta leitura que deu certo
   return r;
+}
+/* Aba LogIA: uma linha por leitura, para entender os erros que as pessoas relatam. */
+function iaRegistrar_(s, req, t0, resultado) {
+  try {
+    inserir_('LogIA', { Quando: new Date().toISOString(), Pessoa: s.pessoa, Tipo: req.tipo, KB: Math.round(String(req.arquivo || req.texto || '').length * 0.75 / 1024),
+      Segundos: Math.round((Date.now() - t0) / 1000), Resultado: String(resultado).slice(0, 300) });
+  } catch (e) { Logger.log('LogIA: ' + e); }
 }
 
 /* Chaves curtas para a resposta sair rápida: t = texto com quantidade, a = alimento, g = gramas, k = kcal, p/c/f = macros em g, s = substituições */
 var IA_ITEM = '{"t":"2 ovos mexidos (100 g)","a":"Ovo mexido","g":100,"k":146,"p":12.4,"c":1.2,"f":9.6}';
 
+/* O plano é lido em duas etapas para cada chamada à IA ser curta (planos com muitas substituições estouravam o tamanho e o tempo de uma resposta só):
+   1) a estrutura (refeições, horários, metas); 2) cada refeição com seus itens, todas ao mesmo tempo. O PDF fica em cache na IA entre as chamadas. */
+var IA_REGRAS_PLANO = [
+  'Você recebe o plano alimentar de uma pessoa, feito por nutricionista, e extrai dados dele em JSON, em português do Brasil.',
+  'Responda só JSON minificado, sem texto fora do JSON. Os números dos exemplos são só ilustração.',
+  'Regras:',
+  '- Metas e macros: p = proteína, c = carboidrato, f = gordura, em gramas; k ou kcal em quilocalorias. Números, não texto.',
+  '- Se o documento traz os macros de um alimento, use os do documento. Senão, calcule pela Tabela TACO (alimento como servido: cozido, grelhado etc.).',
+  '- Medidas caseiras viram gramas aproximados (1 colher de sopa de arroz ≈ 25 g; 1 concha de feijão ≈ 100 g; 1 fatia de pão de forma ≈ 25 g).',
+  '- Chaves dos itens: t = texto como a pessoa lê, com quantidade; a = nome curto do alimento; g = gramas; k = kcal; p, c, f = gramas de proteína, carboidrato e gordura.',
+  '- "s" são substituições do próprio plano para aquele item ("ou", "substituir por", lista de equivalentes), no máximo 8. Sem substituição: lista vazia.',
+  '- Se a refeição tem opções completas (Opção 1, Opção 2), a primeira vai em "itens" e as demais em "alternativas".',
+  '- Itens "à vontade" (salada de folhas, legumes) entram com uma porção típica de 80 g.',
+  '- Hora no formato HH:MM; se não houver, estime pela ordem (café 07:00, lanche 10:00, almoço 12:30, lanche 16:00, jantar 20:00, ceia 22:00).',
+  '- Não invente refeições nem alimentos que não estão no documento.'
+].join('\n');
+
 function iaDieta_(req) {
   var arq = iaArquivo_(req.arquivo, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], 15);
-  var instr = [
-    'Você recebe o plano alimentar de uma pessoa, feito por nutricionista. Extraia tudo em JSON, em português do Brasil.',
-    'Formato exato, JSON minificado, sem texto fora do JSON (os números do exemplo são só ilustração):',
-    '{"profissional":"nome e registro (CRN), se houver, senão vazio",',
-    ' "metas":{"kcal":n,"p":n,"c":n,"f":n,"fonte":"pdf" ou "calculada"},',
-    ' "refeicoes":[{"nome":"Café da manhã","hora":"07:00","itens":[' + IA_ITEM.replace(/\}$/, ',"s":[' + IA_ITEM + ']}') + '],',
-    '   "alternativas":[{"nome":"Opção 2","itens":[' + IA_ITEM + ']}]}],',
-    ' "observacoes":["orientações gerais curtas do plano, no máximo 6"]}',
-    'Regras:',
-    '- Metas: p = proteína, c = carboidrato, f = gordura, em gramas; kcal em quilocalorias. Números, não texto.',
-    '- Se o PDF traz os macros de um alimento, use os do PDF. Senão, calcule pela Tabela TACO (alimento como servido: cozido, grelhado etc.).',
-    '- Medidas caseiras viram gramas aproximados (1 colher de sopa de arroz ≈ 25 g; 1 concha de feijão ≈ 100 g; 1 fatia de pão de forma ≈ 25 g).',
-    '- Chaves dos itens: t = texto como a pessoa lê, com quantidade; a = nome curto do alimento; g = gramas; k = kcal; p, c, f = gramas de proteína, carboidrato e gordura.',
-    '- "s" são substituições do próprio plano para aquele item ("ou", "substituir por", lista de equivalentes). Sem substituição: lista vazia.',
-    '- Se a refeição tem opções completas (Opção 1, Opção 2), a primeira vai em "itens" e as demais em "alternativas".',
-    '- Itens "à vontade" (salada de folhas, legumes) entram com uma porção típica de 80 g.',
-    '- Se o PDF não traz metas diárias, some a primeira opção de cada refeição e marque fonte "calculada".',
-    '- Hora no formato HH:MM; se não houver, estime pela ordem (café 07:00, lanche 10:00, almoço 12:30, lanche 16:00, jantar 20:00, ceia 22:00).',
-    '- Não invente refeições nem alimentos que não estão no documento.'
-  ].join('\n');
-  var r = iaChamar_(false, instr, [arq, { texto: 'Extraia o plano alimentar deste documento.' }], 16000);
-  var o = iaJson_(r);
-  if (!o || !Array.isArray(o.refeicoes) || !o.refeicoes.length) throw apiErro_('Não consegui achar as refeições neste arquivo. Ele é mesmo um plano alimentar? Se for foto ou escaneado, tente um PDF mais nítido.', 'IA');
-  return { plano: iaLimparPlano_(o) };
+  arq.cache = true;
+  var e1 = iaJson_(iaChamar_(false, IA_REGRAS_PLANO, [arq, { texto: 'Etapa 1, só a estrutura do plano. Formato: ' +
+    '{"plano":true,"profissional":"nome e registro (CRN), se houver, senão vazio","metas":{"kcal":n,"p":n,"c":n,"f":n},' +
+    '"refeicoes":[{"nome":"Café da manhã","hora":"07:00"}],"observacoes":["orientações gerais curtas, no máximo 6"]}. ' +
+    'metas = null se o documento não traz metas diárias. plano = false se o documento não é um plano alimentar.' }], 3000));
+  if (!e1 || e1.plano === false || !Array.isArray(e1.refeicoes) || !e1.refeicoes.length)
+    throw apiErro_('Não consegui achar as refeições neste arquivo. Ele é mesmo um plano alimentar? Se for foto ou escaneado, tente um PDF mais nítido.', 'IA');
+  var refs = e1.refeicoes.slice(0, 10), item = IA_ITEM.replace(/\}$/, ',"s":[' + IA_ITEM + ']}');
+  var pedidos = refs.map(function (r, i) {
+    return iaPedido_(false, IA_REGRAS_PLANO, [arq, { texto: 'Etapa 2, só a refeição "' + String(r.nome || '').slice(0, 40) + '" (' + (i + 1) + 'ª de ' + refs.length +
+      ' do plano' + (r.hora ? ', ' + r.hora : '') + '). Formato: {"itens":[' + item + '],"alternativas":[{"nome":"Opção 2","itens":[' + IA_ITEM + ']}]}' }], 8000);
+  });
+  var resps = UrlFetchApp.fetchAll(pedidos.map(function (p) { return p.req; })), falhas = [], primeiroErro = null;
+  var refeicoes = refs.map(function (r, i) {
+    var o = null;
+    try { o = iaJson_(iaResposta_(resps[i], pedidos[i].modelo)); } catch (e) { primeiroErro = primeiroErro || e; }
+    if (!o || !Array.isArray(o.itens) || !o.itens.length) { falhas.push(String(r.nome || 'Refeição ' + (i + 1))); return null; }
+    return { nome: r.nome, hora: r.hora, itens: o.itens, alternativas: o.alternativas || [] };
+  }).filter(Boolean);
+  if (!refeicoes.length) throw primeiroErro || apiErro_('Não consegui ler os itens das refeições. Tente de novo ou monte o plano à mão.', 'IA');
+  var plano = iaLimparPlano_({ profissional: e1.profissional, metas: e1.metas ? Object.assign({ fonte: 'pdf' }, e1.metas) : { fonte: 'calculada' },
+    refeicoes: refeicoes, observacoes: (falhas.length ? ['Não consegui ler: ' + falhas.join(', ') + '. Confira no PDF e complete à mão.'] : []).concat(e1.observacoes || []) });
+  if (falhas.length) plano.faltou = falhas.join(', ');
+  return { plano: plano };
 }
 
 function iaComida_(req) {
@@ -90,9 +117,16 @@ function iaItem_(x) {
 }
 function iaItens_(l) { return (Array.isArray(l) ? l : []).slice(0, 25).map(iaItem_).filter(function (i) { return i.label; }); }
 function iaLimparPlano_(o) {
-  var hora = function (h, i) { var m = String(h || '').match(/(\d{1,2})[:hH](\d{2})?/); return m ? ('0' + m[1]).slice(-2) + ':' + (m[2] || '00') : ['07:00', '10:00', '12:30', '16:00', '20:00', '22:00'][i] || '12:00'; };
+  var hora = function (h, nome, i) {
+    var m = String(h || '').match(/(\d{1,2})[:hH](\d{2})?/);
+    if (m) return ('0' + m[1]).slice(-2) + ':' + (m[2] || '00');
+    var n = String(nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); // sem hora no PDF: estima pelo nome da refeição
+    var porNome = [[/ceia/, '22:00'], [/jantar/, '20:00'], [/almoco/, '12:30'], [/tarde/, '16:00'], [/cafe|desjejum/, '07:00'], [/lanche|manha/, '10:00'], [/pre.?treino/, '17:00'], [/pos.?treino/, '19:00']];
+    for (var k = 0; k < porNome.length; k++) if (porNome[k][0].test(n)) return porNome[k][1];
+    return ['07:00', '10:00', '12:30', '16:00', '20:00', '22:00'][i] || '12:00';
+  };
   var refeicoes = o.refeicoes.slice(0, 10).map(function (r, i) {
-    return { name: String(r.nome || 'Refeição ' + (i + 1)).slice(0, 40), time: hora(r.hora, i),
+    return { name: String(r.nome || 'Refeição ' + (i + 1)).slice(0, 40), time: hora(r.hora, r.nome, i),
       items: (r.itens || []).slice(0, 25).map(function (x) { var it = iaItem_(x); it.subs = iaItens_(x.s || x.subs).slice(0, 8); return it; }).filter(function (i) { return i.label; }),
       alts: (r.alternativas || []).slice(0, 4).map(function (a, j) { return { name: String(a.nome || 'Opção ' + (j + 2)).slice(0, 30), items: iaItens_(a.itens) }; }).filter(function (a) { return a.items.length; }) };
   }).filter(function (r) { return r.items.length; });
@@ -117,31 +151,39 @@ function iaArquivo_(dataUrl, tipos, limiteMb) {
   return { mime: m[1], b64: m[2] };
 }
 
-/** partes: lista de { mime, b64 } (arquivo) ou { texto }. Devolve o texto da resposta. */
+/** partes: lista de { mime, b64, cache } (arquivo) ou { texto }. Devolve o texto da resposta. */
 function iaChamar_(rapido, instrucao, partes, maxTokens) {
+  var p = iaPedido_(rapido, instrucao, partes, maxTokens);
+  return iaResposta_(UrlFetchApp.fetchAll([p.req])[0], p.modelo);
+}
+
+/** Monta o pedido: req no formato de UrlFetchApp.fetchAll, modelo para as mensagens de erro. arquivo.cache = true guarda o arquivo em cache na IA (várias perguntas sobre o mesmo PDF). */
+function iaPedido_(rapido, instrucao, partes, maxTokens) {
   var prov = iaProvedor_(), chave = iaChave_(), c = cfg_();
   var modelo = (rapido ? c.ia_modelo_rapido : c.ia_modelo) || IA_PADRAO[prov][rapido ? 'rapido' : 'modelo'];
-  var url, opt;
   if (prov === 'claude') {
     var content = partes.map(function (p) {
       if (p.texto) return { type: 'text', text: p.texto };
-      if (p.mime === 'application/pdf') return { type: 'document', source: { type: 'base64', media_type: p.mime, data: p.b64 } };
-      return { type: 'image', source: { type: 'base64', media_type: p.mime, data: p.b64 } };
+      var b = { type: p.mime === 'application/pdf' ? 'document' : 'image', source: { type: 'base64', media_type: p.mime, data: p.b64 } };
+      if (p.cache) b.cache_control = { type: 'ephemeral' };
+      return b;
     });
     var corpo = { model: modelo, max_tokens: maxTokens, system: instrucao, messages: [{ role: 'user', content: content }] };
     // Modelos da geração 5 pensam antes de responder; extração de dados não precisa de muito: esforço baixo é mais rápido e barato
     if (/^claude-[a-z]+-5/.test(modelo)) corpo.output_config = { effort: 'low' };
-    url = 'https://api.anthropic.com/v1/messages';
-    opt = { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-      headers: { 'x-api-key': chave, 'anthropic-version': '2023-06-01' }, payload: JSON.stringify(corpo) };
-  } else {
-    url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent';
-    opt = { method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-goog-api-key': chave },
-      payload: JSON.stringify({ systemInstruction: { parts: [{ text: instrucao }] },
-        contents: [{ role: 'user', parts: partes.map(function (p) { return p.texto ? { text: p.texto } : { inline_data: { mime_type: p.mime, data: p.b64 } }; }) }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens, responseMimeType: 'application/json' } }) };
+    return { modelo: modelo, req: { url: 'https://api.anthropic.com/v1/messages', method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { 'x-api-key': chave, 'anthropic-version': '2023-06-01' }, payload: JSON.stringify(corpo) } };
   }
-  var r = UrlFetchApp.fetch(url, opt), code = r.getResponseCode(), txt = r.getContentText();
+  return { modelo: modelo, req: { url: 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent',
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-goog-api-key': chave },
+    payload: JSON.stringify({ systemInstruction: { parts: [{ text: instrucao }] },
+      contents: [{ role: 'user', parts: partes.map(function (p) { return p.texto ? { text: p.texto } : { inline_data: { mime_type: p.mime, data: p.b64 } }; }) }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens, responseMimeType: 'application/json' } }) } };
+}
+
+/** Lê a resposta da IA: devolve o texto ou lança um erro com a explicação para a pessoa. */
+function iaResposta_(r, modelo) {
+  var prov = iaProvedor_(), code = r.getResponseCode(), txt = r.getContentText();
   if (code !== 200) {
     Logger.log('IA ' + prov + ' ' + code + ': ' + txt.slice(0, 500));
     var det = '';

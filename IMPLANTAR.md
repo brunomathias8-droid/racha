@@ -106,6 +106,7 @@ Depois, no Apps Script, execute **ativarAvisos** (cria o gatilho de hora em hora
 | Sintoma | Causa provável |
 |---|---|
 | "Resposta inesperada do servidor" | Implantação não está como "Qualquer pessoa", ou o endereço não termina em /exec |
+| Alguém relata erro ao enviar o PDF da dieta | Veja a aba **LogIA** da planilha: cada leitura tem uma linha com quem enviou, o tamanho, quanto tempo levou e o erro exato |
 | Dieta › Enviar PDF diz que a leitura "ainda não foi ligada" | Falta `ia_provedor` ou `ia_chave` na aba Config, ou a implantação não foi atualizada para a versão nova |
 | Alguém esqueceu o PIN | No Apps Script, rode `redefinirPin('Nome', '1234')` (edite os valores na função antes) |
 | Celular perdido | Rode `encerrarTodasSessoes` |
