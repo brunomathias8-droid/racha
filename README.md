@@ -61,6 +61,21 @@ Peso, % de gordura, massa muscular e cintura, registrados pela pessoa (Perfil �
 - **Disciplina × resultado:** compara semanas com 80% ou mais do plano com as outras. Aparece com 4 semanas completas, desde que haja semanas dos dois lados.
 - **Gasto estimado:** média do que a pessoa registrou na dieta menos a variação da tendência × 7.700 kcal/kg, nas últimas 3 semanas (precisa de 14 dias com dieta registrada).
 
+### Coach
+
+No topo de Resultados (e no cartão da tela Hoje) aparecem insights gerados pelos dados da própria pessoa, sem IA e sem custo, em três grupos: **Mandando bem**, **Vale olhar** (sempre com uma ação concreta) e **Precisa de mais dados**. Referências: MacroFactor (ajusta pelos dados, sem julgar), Apple Fitness (tendências com dica do que fazer) e Strava (reconhece conquistas). Quando há pontos de atenção, pelo menos um positivo aparece junto.
+
+| Regra | Quando |
+|---|---|
+| Ritmo ideal / rápido demais / platô | Perder: 0,5–1% do peso por semana é o ideal; acima de 1% arrisca músculo; parado com 80%+ do plano pede ajuste, parado com plano fraco pede cumprir mais dias. Ganhar: 0,25–0,5% por semana |
+| Meta alcançada | A tendência passou da meta; a partir daí o objetivo vira manter |
+| Disciplina × resultado | Semana atual (com 3 dias ou mais) ou a anterior abaixo de 80%, com a comparação das semanas boas e das outras |
+| Composição | Gordura caindo com massa magra mantida; massa magra caindo mais de 1 kg; cintura caindo com o peso parado |
+| Proteína | Meta do plano abaixo de 1,4 g/kg em déficit; meta batida em menos da metade dos dias registrados |
+| Gasto real × meta | Déficit menor que 150 kcal ou maior que 1.000 kcal |
+| Conquistas e balança | A cada 2 kg perdidos; semanas seguidas se pesando; pesagem 0,7 kg acima da anterior (água) |
+| Dados | Sem pesagem há 10 dias ou mais; poucas pesagens; menos de 14 dias de dieta registrada |
+
 ## Receitas
 
 As 108 receitas vêm do livro “200 Receitas pra Secar”, da nutricionista Patrícia Stênico (ingredientes e macros por porção; modo de preparo resumido com palavras próprias). Elas **não ficam neste repositório público**: vão num arquivo `Receitas.gs` colado só no Apps Script do grupo, e o app baixa depois do login. Uso restrito ao grupo de amigos. Para distribuir o app a terceiros, é preciso autorização da autora.
