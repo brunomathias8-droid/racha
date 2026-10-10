@@ -1,5 +1,5 @@
 /* sw.js — faz o app abrir sem internet e mostra as notificações. Troque VERSAO a cada publicação para os aparelhos receberem a nova versão. */
-const VERSAO = 'racha-v1.1.0';
+const VERSAO = 'racha-v1.1.1';
 const CASCA = ['./', 'index.html', 'config.js', 'nucleo.js', 'motor.js', 'receitas.js', 'base.js', 'telas.js', 'paineis.js', 'acoes.js', 'resultados.js', 'push.js',
   'manifest.webmanifest', 'icones/icone.svg', 'icones/icone-192.png', 'icones/apple-touch-icon.png'];
 
