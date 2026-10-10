@@ -396,7 +396,9 @@ document.addEventListener('input', e => { const t = e.target, d = t.dataset; if 
   else if (d.i === 'daykm' || d.i === 'dayzone' || d.i === 'daynote') { const w = S.week[S.sheet.i]; w[d.i.slice(3)] = t.value; refreshDay(w); }
   else if (d.i === 'pse') { S.sheet.pse = +t.value; const o = $('#pseval'); if (o) o.textContent = t.value; }
   else if (d.i === 'hname') S.sheet.name = t.value; else if (d.i === 'bet') S.sheet.bet = t.value;
-  else if (d.i === 'runkm' || d.i === 'runtempo' || d.i === 'runfc') { S.sheet[d.i.slice(3)] = t.value; const km = parseFloat(String(S.sheet.km || '').replace(',', '.')), sec = parseTempo(S.sheet.tempo), o = $('#runpace'); if (o) o.innerHTML = km > 0 && sec > 0 ? `Pace: <b>${pace(sec / km)}/km</b>` : 'Preencha distância e tempo para ver o pace.'; }
+  else if (d.i === 'runkm' || d.i === 'runtempo' || d.i === 'runfc') {
+    if (d.i === 'runtempo') { const f = fmtTempo(t.value); if (f !== t.value) { t.value = f; t.setSelectionRange(f.length, f.length); } }
+    S.sheet[d.i.slice(3)] = t.value; const km = parseFloat(String(S.sheet.km || '').replace(',', '.')), sec = parseTempo(S.sheet.tempo), o = $('#runpace'); if (o) o.innerHTML = km > 0 && sec > 0 ? `Pace: <b>${pace(sec / km)}/km</b>` : 'Preencha distância e tempo para ver o pace.'; }
   else if (d.i === 'logg') { const it = S.log[+t.dataset.li], g0 = it && gramasItem(it), g = parseFloat(String(t.value).replace(',', '.'));
     if (it && g0 && g > 0 && g <= 5000) { const k = g / g0; ['kcal', 'p', 'c', 'f'].forEach(x => it[x] = (+it[x] || 0) * k); it.g = g;
       it.label = /(\d+(?:[.,]\d+)?)\s*g\b/.test(it.label) ? it.label.replace(/(\d+(?:[.,]\d+)?)\s*g\b/, fmt(g) + ' g') : `${it.label} (${fmt(g)} g)`;
