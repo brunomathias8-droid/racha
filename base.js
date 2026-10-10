@@ -68,7 +68,8 @@ function estadoPessoalNovo(nome) {
     goals: null, dietMeta: null, meals: [], log: [], logMeal: 'extra', flags: {},
     habits: HAB_PADRAO.map(h => ({ ...h, val: 0, streak: 0, wk: [0, 0, 0, 0, 0, 0], photo: null })),
     week: semanaVazia(), weekOrig: null, weekEdited: false, W: novosTreinos(), active: 'A', sess: {}, done: {}, sug: {}, rest: 90,
-    sportsLog: [], runs: [], runGoal: '', customEquip: [], hist: {}, loads: {}, ana: null, steps: {}
+    sportsLog: [], runs: [], runGoal: '', customEquip: [], hist: {}, loads: {}, ana: null, steps: {},
+    body: { h: null, meta: null, src: null, regs: [] }, adh: {}
   };
 }
 const CHAVES_PESSOAIS = Object.keys(estadoPessoalNovo());
@@ -322,12 +323,14 @@ function fecharDia(dia) {
   if (w && w.type === 'run') h.runsPlan = 1;
   act.forEach(x => { const ok = habDone(x); x.streak = ok ? (x.streak || 0) + 1 : 0; x.wk = [...(x.wk || []).slice(-5), ok ? 1 : 0]; });
   h.active = !!(h.trained || h.perfect || h.macros || h.meals);
+  guardarResumoDia(dia);
 }
 function fecharDiaVazio(dia) {
   const h = hd(dia), w = S.week[diaIdx(dia)];
   h.hab = 0; h.habTot = S.habits.length; h.perfect = false; h.meals = 0; h.mealsPlan = S.meals.length; h.diet = !!S.goals; h.planned = !!(w && w.type !== 'rest');
   if (w && w.type === 'musc' && W[w.key]) h.setsPlan = W[w.key].ex.reduce((a, e) => a + e.sets, 0);
   S.habits.forEach(x => { x.streak = 0; x.wk = [...(x.wk || []).slice(-5), 0]; });
+  guardarResumoDia(dia);
 }
 function sequencia(dia) {
   const u = S.user, h = S.hist[dia] || {};

@@ -44,7 +44,7 @@ function renderSheet() {
   const k = S.sheet.k, prev = L.querySelector('.sheet'), same = prev && prev.dataset.k === k, y = same ? prev.scrollTop : 0, foco = same ? campoEmFoco(L) : null;
   let html;
   try { html = SH[k](S.sheet); } catch (e) { console.error(e); html = head('Ops', 'Algo deu errado') + `<div class="note warn"><span>${esc(e.message)}</span></div>`; }
-  L.innerHTML = `<div class="scrim" data-a="close"></div><div class="sheet ${k === 'ana' ? 'full' : ''}" data-k="${k}" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
+  L.innerHTML = `<div class="scrim" data-a="close"></div><div class="sheet ${k === 'ana' || k === 'res' ? 'full' : ''}" data-k="${k}" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
   const nw = L.querySelector('.sheet'); if (y) nw.scrollTop = y; if (same) nw.style.animation = 'none'; devolverFoco(L, foco);
   if (k === 'photo' && S.sheet.stage === 'edit') bindCrop();
 }

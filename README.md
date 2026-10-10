@@ -29,6 +29,7 @@ Passo a passo para colocar no ar: [IMPLANTAR.md](IMPLANTAR.md).
 | `paineis.js` | Painéis (card, atributos, VAR, dieta, treino, grupo, perfil, anamnese) |
 | `acoes.js` | O que cada toque faz, login e inicialização |
 | `push.js` | Notificações (Firebase Cloud Messaging) |
+| `resultados.js` | Resultados: medidas do corpo, tendência do peso, gasto estimado, disciplina × resultado e os gráficos |
 | `motor.js` | Ícones, Tabela TACO, animação dos exercícios, aparelhos, recorte da foto do card |
 | `receitas.js` | Carrega as receitas do servidor e guarda no aparelho |
 | `sw.js` | Guarda o app no aparelho e mostra as notificações. Trocar `VERSAO` a cada publicação |
@@ -49,6 +50,16 @@ Passo a passo para colocar no ar: [IMPLANTAR.md](IMPLANTAR.md).
 Quem calcula os pontos é o servidor, pela tabela acima (`N_oficial` em `nucleo.js`): o que o aparelho manda como pontuação é ignorado.
 
 Cada 100 pontos do time viram 1 gol (80 no modo competitivo, em que só vale lance com foto). A rodada vai de segunda a domingo.
+
+## Resultados
+
+Peso, % de gordura, massa muscular e cintura, registrados pela pessoa (Perfil › Resultados ou o cartão na tela Hoje). **Só a própria pessoa vê**: os dados ficam no estado pessoal, não vão para o grupo. Registrar medidas dá XP, não pontos para o time.
+
+- **Tendência do peso:** média móvel exponencial diária (α = 0,1), com os dias sem pesagem preenchidos em linha reta. É o número principal; a pesagem do dia aparece apagada no gráfico.
+- **Disciplina por semana:** média diária de treino (nos dias de treino), dieta (refeições do plano ou macros fechados) e hábitos. O resumo de cada dia fica guardado por 2 anos.
+- **Variação do peso por semana:** média centrada de 7 dias, que não tem o atraso da tendência e atribui a mudança à semana certa.
+- **Disciplina × resultado:** compara semanas com 80% ou mais do plano com as outras. Aparece com 4 semanas completas, desde que haja semanas dos dois lados.
+- **Gasto estimado:** média do que a pessoa registrou na dieta menos a variação da tendência × 7.700 kcal/kg, nas últimas 3 semanas (precisa de 14 dias com dieta registrada).
 
 ## Receitas
 
