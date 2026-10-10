@@ -36,6 +36,7 @@ button,input{font:inherit;color:inherit}
   --accent:#E8705A; --on-accent:#FFFFFF; --accent2:#2FA39A;
   --good:#1E8A80; --bad:#C93B30; --warn:#A87508;
   --p:#E8705A; --c:#E3A93F; --f:#2FA39A; --kcal:#7B5CC7;
+  --ch1:#E8705A; --ch2:#2FA39A; --grid:#EEE7F4;
   --hero:#2A2240; --on-hero:#FFFFFF; --hero-mut:#B9B1D3;
   --tA:#E8705A; --tB:#7DB9E0;
   --bd:0 solid transparent; --bd-in:2px solid #E4DAEE; --r:24px; --r-sm:16px; --r-btn:999px;
@@ -53,6 +54,7 @@ button,input{font:inherit;color:inherit}
   --accent:#FFD21F; --on-accent:#141414; --accent2:#3D5AFE;
   --good:#16804A; --bad:#C92A1C; --warn:#8A5F00;
   --p:#3D5AFE; --c:#FFD21F; --f:#FF8FB1; --kcal:#141414;
+  --ch1:#3D5AFE; --ch2:#D6336C; --grid:#ECE6CC;
   --hero:#FFD21F; --on-hero:#141414; --hero-mut:#3E3B30;
   --tA:#FF8FB1; --tB:#3D5AFE;
   --bd:2px solid #141414; --bd-in:2px solid #141414; --r:16px; --r-sm:12px; --r-btn:12px;
@@ -70,6 +72,7 @@ button,input{font:inherit;color:inherit}
   --accent:#E9B949; --on-accent:#0B1020; --accent2:#5B8CFF;
   --good:#39C98A; --bad:#F0555A; --warn:#E9B949;
   --p:#F0555A; --c:#E9B949; --f:#5B8CFF; --kcal:#39C98A;
+  --ch1:#B88A2A; --ch2:#5B8CFF; --grid:#222B48;
   --hero:#0E1428; --on-hero:#F1F4FF; --hero-mut:#97A3C7;
   --tA:#F0555A; --tB:#5B8CFF;
   --bd:1px solid #263157; --bd-in:1px solid #34407040; --r:14px; --r-sm:10px; --r-btn:12px;
@@ -168,6 +171,23 @@ button.panel{text-align:left;cursor:pointer;width:100%;color:inherit}
 .app[data-theme="b"] .note{border:2px solid #141414;background:var(--s2);color:var(--fg)}
 .note b{color:var(--fg)}
 .note.warn{box-shadow:inset 4px 0 0 var(--warn)}
+.note.good{box-shadow:inset 4px 0 0 var(--good)}
+/* gráficos de Resultados (resultados.js) */
+.ch{position:relative;margin:2px 0 6px;touch-action:pan-y}
+.ch svg{display:block;width:100%;height:auto;overflow:visible}
+.ch-grid{stroke:var(--grid);stroke-width:1}
+.ch-base{stroke:var(--mut);stroke-width:1;opacity:.5}
+.ch-ref{stroke:var(--mut);stroke-width:1;opacity:.8}
+.ch-cross{stroke:var(--mut);stroke-width:1}
+.ch-t{font:500 10.5px var(--fb);fill:var(--mut)}
+.ch-strong{fill:var(--fg);font-weight:700}
+.ch-tip{position:absolute;top:4px;background:var(--s1);color:var(--fg);border:var(--bd-in);border-radius:10px;padding:7px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none;white-space:nowrap;z-index:2}
+.ch-tip-h{color:var(--mut);font-size:11px;margin-bottom:2px}
+.ch-tip-r{display:flex;align-items:center;gap:6px}
+.ch-tip-r i{display:inline-block;width:12px;height:2px;border-radius:2px}
+.ch-tip-r span{color:var(--mut)}
+.lk{display:inline-block;width:12px;height:2px;border-radius:2px;vertical-align:middle;margin:0 4px 2px 0}
+.lk.dot{width:7px;height:7px;border-radius:50%;margin-left:8px}
 .sec{display:flex;align-items:center;gap:8px;margin-top:2px}
 .sec .h2{margin:0}
 .app[data-theme="b"] .sec::after{content:'';flex:1;height:2px;background:#141414}
@@ -558,6 +578,7 @@ input.in[type=time]{min-height:44px}
 <script src="telas.js"></script>
 <script src="paineis.js"></script>
 <script src="acoes.js"></script>
+<script src="resultados.js"></script>
 <script src="push.js"></script>
 <script>iniciar();</script>
 </body>

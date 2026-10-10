@@ -117,7 +117,8 @@ function scrHoje() {
     ${prox ? `<button class="row" data-a="go" data-tab="dieta" data-dv="hoje"><span class="tile">${ic('bowl')}</span>
       <span><span class="t">${esc(prox.name)} · ${prox.time}</span><span class="s">${prox.items.map(i => esc(i.food || i.label)).join(', ')}</span></span><span class="chev">${ic('chev', 18)}</span></button>` : ''}
   </div>
-  ${S.goals ? `${sec('Macros de hoje')}<div class="panel">${macroRows(true)}</div>` : ''}`;
+  ${S.goals ? `${sec('Macros de hoje')}<div class="panel">${macroRows(true)}</div>` : ''}
+  ${sec('Resultados')}<div class="stack">${cardResultados()}</div>`;
 }
 
 /* ============ DIETA ============ */
