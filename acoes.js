@@ -98,15 +98,25 @@ function schedulePreviewsSafe() { if (typeof schedulePreviews === 'function') sc
 /* ============ lances do dia ============ */
 function doMeal(id, photo) { const m = S.meals.find(x => x.id === id); if (!m) return;
   m.items.forEach(it => S.log.push({ ...it, subs: undefined, meal: m.id })); m.done = true; m.photo = !!photo;
-  mealEvent(m.name, photo); const nx = S.meals.find(x => !x.done); S.logMeal = nx ? nx.id : 'extra';
+  mealEvent(m, photo); const nx = S.meals.find(x => !x.done); S.logMeal = nx ? nx.id : 'extra';
   toast(regras().photo && !photo ? `${m.name} registrado · sem foto não pontua` : `${m.name} registrado · +5 pts`); addXP(15); checkMacros(); render(); }
 function evFinalize(photo) { const s = S.sheet; closeSheet();
   if (s.what === 'meal') { doMeal(s.id, photo); return; }
   const h = S.habits[s.i]; if (h.type !== 'count') { h.val = 1; addXP(10); } h.photo = !!photo; habitEvent(photo); render();
   toast(photo ? 'Hábito comprovado: conta no placar' : 'Marcado só para sua sequência'); }
-function mealEvent(name, photo) {
-  const n = S.events.filter(e => e.who === 'u' && e.kind === 'refeicao' && e.day === S.day).length; if (n >= 5) return;
-  pushEvent(`${name} dentro do plano`, 5, null, [['Refeição dentro do plano × 1', 5]], { kind: 'refeicao', ev: photo ? 'foto' : null, photo: photo || null }); }
+/* Um lance por refeição por dia (chave ref-<id>): lançar de novo atualiza o mesmo lance; reabrir ou pular apaga. */
+const idLanceRefeicao = m => S.eu + '-' + S.day + '-ref-' + m.id;
+function mealEvent(m, photo) {
+  const id = idLanceRefeicao(m), n = S.events.filter(e => e.who === 'u' && e.kind === 'refeicao' && e.day === S.day && e.id !== id).length; if (n >= 5) return;
+  pushEvent(`${m.name} dentro do plano`, 5, 'ref-' + m.id, [['Refeição dentro do plano × 1', 5]], { kind: 'refeicao', ev: photo ? 'foto' : null, photo: photo || null }); }
+function mealEventDel(m) {
+  const id = idLanceRefeicao(m), cid = S.day + '-ref-' + m.id; if (!S.evMap.has(id)) return;
+  S.evMap.delete(id); reordenarEventos();
+  S.fila = S.fila.filter((f, i) => !(i > 0 && f.acao === 'lancar' && f.dados.ev.id === cid)); enfileirar('excluirEvento', { id });
+}
+/* Gramas de um item lançado: campo g ou o número antes de "g" no texto ("150 g · Frango", "Pão (50 g)"). */
+function gramasItem(it) { if (+it.g > 0) return +it.g; const x = String(it.label).match(/(\d+(?:[.,]\d+)?)\s*g\b/); return x ? parseFloat(x[1].replace(',', '.')) : null; }
+function proximaRefeicao() { const nx = S.meals.find(x => !x.done); S.logMeal = nx ? nx.id : 'extra'; }
 /* foto: a foto que acabou de comprovar um hábito (vai junto com o lance; o servidor guarda a última). */
 function habitEvent(foto) {
   const dn = S.habits.filter(habDone), perfect = S.habits.length > 0 && dn.length === S.habits.length, prev = S.flags.perfect;
@@ -124,7 +134,7 @@ function habitEvent(foto) {
 function checkMacros() {
   if (!S.goals) return;
   const c = consumed(), g = S.goals, ok = Math.abs(c.kcal - g.kcal) <= g.kcal * .1 && c.p >= g.p * .9 && c.c <= g.c * 1.1 && c.f <= g.f * 1.1;
-  if (ok && !S.flags.macros) { S.flags.macros = true; const dn = S.meals.filter(m => m.done);
+  if (ok && !S.flags.macros) { S.flags.macros = true; const dn = S.meals.filter(m => m.done && !m.skip);
     pushEvent('Fechou os macros do dia', 25, 'macros', [['Dia dentro dos macros', 25]], { kind: 'macros', ev: dn.length && dn.every(m => m.photo) ? 'foto' : null }); addXP(50); toast('Macros fechados. +25 pts'); }
 }
 function addItensLog(itens, meal) { itens.forEach(it => S.log.push({ label: it.label, food: it.food || it.label, kcal: +it.kcal || 0, p: +it.p || 0, c: +it.c || 0, f: +it.f || 0, meal })); }
@@ -145,7 +155,7 @@ const A = {
   gotreino: d => { S.active = d.v; S.editWk = false; S.tab = 'treino'; S.tv = 'sessao'; render(false); },
   seg: d => { S[d.k] = d.v; render(false); },
   sheet: d => openSheet({ k: d.k, id: d.id, i: d.i != null ? +d.i : undefined, v: d.v }),
-  close: () => { const k = S.sheet && S.sheet.k; closeSheet(); if (['day', 'addex', 'wklist', 'mealedit', 'goals'].includes(k)) render(); }, toast: d => toast(d.v), nextover: () => nextOver(),
+  close: () => { const k = S.sheet && S.sheet.k; closeSheet(); if (['day', 'addex', 'wklist', 'mealedit', 'mealog', 'goals'].includes(k)) render(); }, toast: d => toast(d.v), nextover: () => nextOver(),
   fecharpassos: () => { S.steps.fechado = true; render(); },
   settheme: d => { setTheme(d.v); toast(`Aparência ${d.v.toUpperCase()} · ${THEMES[d.v].name}`); },
   photo: () => { openSheet({ k: 'photo', stage: PH.src ? 'edit' : 'pick' }); initFD().then(() => initSeg()).catch(() => { }); },
@@ -158,6 +168,14 @@ const A = {
   other: d => { S.logMeal = d.id; render(); const i = $('#logtxt'); i.focus(); i.scrollIntoView({ block: 'center' }); },
   ateplan: d => { if (regras().photo) openSheet({ k: 'evid', what: 'meal', id: d.id }); else doMeal(d.id, null); },
   mealdone: d => { const m = S.meals.find(x => x.id === d.id); m.done = true; const nx = S.meals.find(x => !x.done); S.logMeal = nx ? nx.id : 'extra'; toast(`${m.name} registrado fora do plano. Conta para o NUT, não para o placar.`); checkMacros(); render(); },
+  mealskip: d => { const m = S.meals.find(x => x.id === d.id); if (!m) return;
+    S.log = S.log.filter(i => i.meal !== m.id); m.done = true; m.skip = true; m.photo = null; mealEventDel(m); proximaRefeicao();
+    toast(`${m.name}: marcada como pulada`); render(); },
+  mealreopen: d => { const m = S.meals.find(x => x.id === (d.id || (S.sheet && S.sheet.id))); if (!m) return;
+    S.log = S.log.filter(i => i.meal !== m.id); m.done = false; m.skip = false; m.photo = null; mealEventDel(m); S.logMeal = m.id;
+    closeSheet(); toast(`${m.name} reaberta`); render(); },
+  logdel: d => { const it = S.log[+d.li]; if (!it) return; S.log.splice(+d.li, 1); toast(`Removido: ${it.label}`); renderSheet(); },
+  mealogok: () => { closeSheet(); checkMacros(); render(); },
   undolog: () => { const it = S.log.pop(); if (it) toast(`Desfeito: ${it.label}`); render(); },
   evskip: () => evFinalize(null),
   viewev: d => openSheet({ k: 'viewev', id: d.id }),
@@ -165,7 +183,7 @@ const A = {
   rmeal: d => { S.sheet.meal = d.id; renderSheet(); },
   logrecipe: () => { const s = S.sheet, r = RECIPES.find(x => x.id === s.id), n = s.n;
     S.log.push({ label: `${fmt(n, n % 1 ? 1 : 0)} ${plu(r.portion, n)} · ${r.n}`, food: r.n, kcal: r.m.kcal * n, p: r.m.p * n, c: r.m.c * n, f: r.m.f * n, meal: s.meal });
-    if (s.meal !== 'extra') { const m = S.meals.find(x => x.id === s.meal); if (m && !m.done) { m.done = true; mealEvent(m.name, null); } }
+    if (s.meal !== 'extra') { const m = S.meals.find(x => x.id === s.meal); if (m && !m.done) { m.done = true; mealEvent(m, null); } }
     closeSheet(); toast(regras().photo && s.meal !== 'extra' ? `${r.n} registrado · sem foto não pontua no modo competitivo` : `${r.n} registrado`); addXP(15); checkMacros(); S.tab = 'dieta'; S.dv = 'hoje'; render(false); },
   doswap: d => { const m = S.meals.find(x => x.id === S.sheet.id), i = S.sheet.i, cur = m.items[i], o = swapsFor(cur)[+d.i];
     const novo = { ...o.it, subs: [{ ...cur, subs: undefined }, ...(cur.subs || []).filter(x => x.label !== o.it.label)] }; m.items[i] = novo; closeSheet(); toast(`${cur.food || cur.label} trocado por ${novo.food || novo.label}`); render(); },
@@ -185,7 +203,7 @@ const A = {
   pmeal: d => { S.sheet.meal = d.id; renderSheet(); },
   platedel: d => { S.sheet.itens.splice(+d.i, 1); renderSheet(); },
   plateok: () => { const s = S.sheet, meal = s.meal; addItensLog(s.itens, meal);
-    if (meal !== 'extra') { const m = S.meals.find(x => x.id === meal); if (m && !m.done) { m.done = true; m.photo = true; mealEvent(m.name, s.img); } }
+    if (meal !== 'extra') { const m = S.meals.find(x => x.id === meal); if (m && !m.done) { m.done = true; m.photo = true; mealEvent(m, s.img); } }
     closeSheet(); toast(meal === 'extra' ? 'Prato registrado' : 'Prato registrado · a foto vale como evidência'); addXP(15); checkMacros(); render(); },
   // treino
   coach: d => { if (d.v === 'ok') { Object.entries(S.sug).forEach(([k, x]) => Object.entries(x).forEach(([n, kg]) => { const e = W[k] && W[k].ex.find(y => y.n === n); if (e) e.kg = kg; })); S.sess = {}; toast('Cargas atualizadas no plano'); } else toast('Plano mantido'); S.sug = {}; render(); },
@@ -341,6 +359,9 @@ document.addEventListener('submit', async e => { e.preventDefault(); const f = e
     addItensLog(r.itens, meal); addXP(10);
     toast(`${r.itens.length} ${r.itens.length > 1 ? 'itens lançados' : 'item lançado'} · ${fmt(r.itens.reduce((a, i) => a + (+i.kcal || 0), 0))} kcal${r.nao.length ? ` · não entendi: ${r.nao.join(', ')}` : ''}`, 4000);
     checkMacros(); render(); marcarMudanca(); }
+  if (f === 'mealadd') { const v = ($('#mealaddtxt') || {}).value.trim(); if (!v || !S.sheet) return; const id = S.sheet.id, r = await lerComida(v);
+    if (!r.itens.length) { toast('Não reconheci esse alimento. Tente "150g frango".'); renderSheet(); return; }
+    addItensLog(r.itens, id); if (r.nao.length) toast('Não entendi: ' + r.nao.join(', ')); renderSheet(); marcarMudanca(); }
   if (f === 'additem') { const v = ($('#itemtxt') || {}).value.trim(); if (!v) return; const m = S.meals.find(x => x.id === S.sheet.id), r = await lerComida(v);
     r.itens.forEach(it => m.items.push({ label: it.label, food: it.food || it.label, kcal: +it.kcal || 0, p: +it.p || 0, c: +it.c || 0, f: +it.f || 0 }));
     if (!r.itens.length) toast('Não reconheci esse alimento.'); else if (r.nao.length) toast('Não entendi: ' + r.nao.join(', '));
@@ -363,6 +384,10 @@ document.addEventListener('input', e => { const t = e.target, d = t.dataset; if 
   else if (d.i === 'pse') { S.sheet.pse = +t.value; const o = $('#pseval'); if (o) o.textContent = t.value; }
   else if (d.i === 'hname') S.sheet.name = t.value; else if (d.i === 'bet') S.sheet.bet = t.value;
   else if (d.i === 'runkm' || d.i === 'runtempo' || d.i === 'runfc') { S.sheet[d.i.slice(3)] = t.value; const km = parseFloat(String(S.sheet.km || '').replace(',', '.')), sec = parseTempo(S.sheet.tempo), o = $('#runpace'); if (o) o.innerHTML = km > 0 && sec > 0 ? `Pace: <b>${pace(sec / km)}/km</b>` : 'Preencha distância e tempo para ver o pace.'; }
+  else if (d.i === 'logg') { const it = S.log[+t.dataset.li], g0 = it && gramasItem(it), g = parseFloat(String(t.value).replace(',', '.'));
+    if (it && g0 && g > 0 && g <= 5000) { const k = g / g0; ['kcal', 'p', 'c', 'f'].forEach(x => it[x] = (+it[x] || 0) * k); it.g = g;
+      it.label = /(\d+(?:[.,]\d+)?)\s*g\b/.test(it.label) ? it.label.replace(/(\d+(?:[.,]\d+)?)\s*g\b/, fmt(g) + ' g') : `${it.label} (${fmt(g)} g)`;
+      const o = $('#mealtot'), its = S.log.filter(i => i.meal === S.sheet.id); if (o) o.textContent = `${fmt(its.reduce((a, i) => a + i.kcal, 0))} kcal · ${fmt(its.reduce((a, i) => a + i.p, 0))} g de proteína`; } }
   else if (d.i === 'rungoal') S.runGoal = t.value.slice(0, 80);
   else if (d.i === 'anaage') S.anaTmp.d.age = parseInt(t.value, 10) || null; else if (d.i === 'anafc') S.anaTmp.d.fcmax = parseInt(t.value, 10) || null;
   else if (d.i === 'mname' || d.i === 'mtime') { const m = S.meals.find(x => x.id === S.sheet.id); if (d.i === 'mname') m.name = t.value.slice(0, 40) || 'Refeição'; else { m.time = t.value || m.time; S.meals.sort((a, b) => a.time.localeCompare(b.time)); } }
