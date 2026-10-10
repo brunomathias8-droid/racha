@@ -72,7 +72,7 @@ function primeiraCom(campo) { return regsOrd().find(x => x[campo] != null) || nu
 /* Objetivo: perder ou ganhar peso. Usa a meta; sem meta, a anamnese. */
 function objetivoPeso(atual) {
   const m = S.body.meta;
-  if (m && atual) return m < atual - 0.3 ? 'perder' : m > atual + 0.3 ? 'ganhar' : 'manter';
+  if (m && atual) { if (p0Meta(m, atual)) return 'manter'; return m < atual - 0.3 ? 'perder' : m > atual + 0.3 ? 'ganhar' : 'manter'; }
   const g = (S.ana && S.ana.goal) || [];
   return g.includes('Perder gordura') ? 'perder' : g.includes('Ganhar massa') ? 'ganhar' : 'perder';
 }
@@ -183,10 +183,116 @@ document.addEventListener('pointermove', e => { if (e.target.closest && e.target
 document.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('.ch')) dicaGraf(e); });
 document.addEventListener('pointerout', e => { const b = e.target.closest && e.target.closest('.ch'); if (b && !b.contains(e.relatedTarget)) { b.querySelector('.ch-tip').hidden = true; b.querySelector('.ch-cross').style.display = 'none'; } });
 
+/* ------------------------------ coach ------------------------------ */
+/* Insights a partir dos dados da própria pessoa. Referências: MacroFactor (sem julgamento, ajuste pelos dados),
+   Apple Fitness (Mandando bem / Vale olhar com uma ação concreta / Precisa de mais dados), Strava (reconhece conquistas).
+   Faixas: perder 0,5–1% do peso por semana preserva massa muscular; ganhar 0,25–0,5%; proteína 1,6–2,2 g/kg para quem treina.
+   Cada insight: { t: 'bom' | 'olhar' | 'dados', p: prioridade (maior aparece antes), tit, txt, acao: [rótulo, data-a, data-k] } */
+const COACH_TIPOS = { bom: ['Mandando bem', 'var(--good)'], olhar: ['Vale olhar', 'var(--warn)'], dados: ['Precisa de mais dados', 'var(--mut)'] };
+function ritmoSemanal(T, dias) { // kg por semana pela tendência, na janela pedida (14 dias quando houver)
+  if (!T) return null; const span = N_diasEntre(T.primeiro, T.ultimo); if (span < 7) return null;
+  const n = Math.min(dias, span); return (T.tr[T.ultimo] - T.tr[somaDias(T.ultimo, -n)]) / n * 7;
+}
+/* A meta foi alcançada se a primeira pesagem estava do outro lado dela. */
+function p0Meta(meta, atual) { const p0 = primeiraCom('w'); if (!p0) return false; return (p0.w > meta && atual <= meta) || (p0.w < meta && atual >= meta); }
+function coachRes() {
+  const out = [], add = (t, p, tit, txt, acao) => out.push({ t, p, tit, txt, acao });
+  const T = serieTendencia(), B = S.body, uw = ultimaCom('w'), registrar = ['Registrar medidas', 'sheet', 'medida'];
+  if (!uw) { add('dados', 100, 'Comece pela balança', 'Registre seu peso hoje. Com algumas pesagens por semana, o coach passa a mostrar seu ritmo, o que está funcionando e o que ajustar.', registrar); return out; }
+  const atual = T.tr[T.ultimo], obj = objetivoPeso(atual), span = N_diasEntre(T.primeiro, T.ultimo);
+  const semPesar = N_diasEntre(uw.d, S.day), r14 = ritmoSemanal(T, 14), pct = r14 == null ? null : r14 / atual * 100;
+  const sem = semanasRes(T), ins = insightDisciplina(sem, obj), G = gastoEstimado(T), nutri = S.dietMeta && S.dietMeta.prof ? 'sua nutricionista' : 'um nutricionista';
+
+  // 1. frequência de pesagem
+  if (semPesar >= 10) add('olhar', 90, `${semPesar} dias sem pesagem`, 'Sem pesagens recentes a tendência fica parada. Uma pesagem por semana, de manhã e em jejum, já basta para acompanhar.', registrar);
+  else if (T.n < 3 || span < 7) add('dados', 60, 'Mais algumas pesagens', `Com pesagens em pelo menos 2 semanas diferentes aparece o seu ritmo. Você tem ${T.n} pesage${T.n === 1 ? 'm' : 'ns'} até agora.`, registrar);
+
+  // 2. ritmo frente ao objetivo
+  if (pct != null && span >= 14) {
+    const kg = fmt(Math.abs(r14), 2), pc = fmt(Math.abs(pct), 1);
+    if (obj === 'perder') {
+      if (pct <= -1.0) add('olhar', 85, 'Perdendo rápido demais', `Você está perdendo ${kg} kg por semana (${pc}% do peso). Acima de 1% por semana cresce o risco de perder músculo junto. Vale comer um pouco mais (cerca de 150 a 200 kcal por dia) e manter a musculação.`);
+      else if (pct <= -0.5) add('bom', 70, 'No ritmo ideal', `Você está perdendo ${kg} kg por semana (${pc}% do peso), dentro da faixa de 0,5% a 1% que preserva a massa muscular. É manter o que está fazendo.`);
+      else if (pct < -0.15) add('bom', 50, 'Perdendo devagar e sempre', `Você está perdendo ${kg} kg por semana (${pc}% do peso). Funciona e é fácil de manter; para acelerar, o caminho é aumentar os dias em que você cumpre o plano.`);
+      else {
+        const boa = sem.filter(s => !s.parcial && s.adh != null).slice(-3), media = boa.length ? boa.reduce((a, s) => a + s.adh, 0) / boa.length : null;
+        if (media != null && media >= ADH_BOA) add('olhar', 88, 'Platô com o plano em dia', `Nas últimas semanas o peso parou (${sinal(r14, 2)} kg/sem) mesmo com ${Math.round(media)}% do plano cumprido. É hora de ajustar o plano: reduzir cerca de 150 kcal por dia ou somar um treino. Converse com ${nutri}.`);
+        else add('olhar', 86, 'O peso parou', `O peso está estável (${sinal(r14, 2)} kg/sem)${media != null ? ` e você cumpriu ${Math.round(media)}% do plano nas últimas semanas` : ''}. Antes de mudar o plano, vale cumprir mais dias: é isso que costuma destravar.`);
+      }
+    } else if (obj === 'ganhar') {
+      if (pct > 0.5) add('olhar', 80, 'Ganhando rápido demais', `Você está ganhando ${kg} kg por semana (${pc}% do peso). Acima de 0,5% por semana boa parte vira gordura. Vale reduzir um pouco as calorias.`);
+      else if (pct >= 0.2) add('bom', 70, 'Ganho no ritmo certo', `Você está ganhando ${kg} kg por semana (${pc}% do peso), na faixa de 0,25% a 0,5% que favorece músculo. Mantenha a musculação em dia.`);
+      else add('olhar', 75, 'O peso não está subindo', `Para ganhar massa, o peso precisa subir devagar (0,25% a 0,5% por semana). Vale comer cerca de 200 kcal a mais por dia.`);
+    } else if (Math.abs(pct) <= 0.25) add('bom', 60, 'Peso estável', 'Seu peso está estável, como você queria.');
+    else add('olhar', 80, pct < 0 ? 'Ainda descendo' : 'O peso está subindo', `Você está na meta, mas o peso segue ${pct < 0 ? 'caindo' : 'subindo'} (${sinal(r14, 2)} kg/sem). Para manter, ${pct < 0 ? 'aumente' : 'reduza'} cerca de 200 kcal por dia.`);
+  }
+  if (B.meta && p0Meta(B.meta, atual)) add('bom', 95, 'Meta alcançada!', `Sua tendência chegou a ${fmt(atual, 1)} kg e passou da meta de ${fmt(B.meta, 1)} kg. Se quiser ir além, defina uma meta nova; se não, o foco agora é manter.`, ['Definir nova meta', 'sheet', 'medcfg']);
+
+  // 3. disciplina × resultado
+  if (ins.texto) {
+    const atualS = sem[sem.length - 1], ultS = sem.filter(s => !s.parcial).pop();
+    const ref = atualS && atualS.adh != null && atualS.nAdh >= 3 ? atualS : ultS;
+    if (ref && ref.adh < ADH_BOA) add('olhar', 84, `${ref.parcial ? 'Esta semana' : 'Semana passada'}: ${ref.adh}% do plano`, `${ins.texto} ${ref.parcial ? 'Ainda dá tempo de puxar esta semana para cima.' : 'Bora fazer desta uma semana acima de ' + ADH_BOA + '%.'}`, ['Ver o que falta hoje', 'go', '']);
+    else add('bom', 65, 'Sua disciplina está dando resultado', ins.texto);
+  }
+
+  // 4. composição e medidas (mesma fonte, para comparar)
+  const bfs = regsOrd().filter(r => r.bf != null);
+  if (bfs.length >= 2) {
+    const a = bfs[0], b = bfs[bfs.length - 1], pw = r => r.w != null ? r.w : T.tr[r.d] != null ? T.tr[r.d] : atual;
+    const dG = pw(b) * b.bf / 100 - pw(a) * a.bf / 100, dM = pw(b) * (1 - b.bf / 100) - pw(a) * (1 - a.bf / 100), mesma = a.src === b.src;
+    if (dG < -0.5 && dM > -0.3) add('bom', 78, 'Perdendo gordura, não músculo', `Desde ${fmtCurta(a.d)} você perdeu ${fmt(-dG, 1)} kg de gordura e ${dM >= 0.1 ? `ganhou ${fmt(dM, 1)} kg de massa magra` : 'manteve a massa magra'}. É exatamente o que se quer.${mesma ? '' : ' (Medições de fontes diferentes: compare com cautela.)'}`);
+    else if (dM < -1) add('olhar', 82, 'A massa magra caiu', `Desde ${fmtCurta(a.d)} a massa magra caiu ${fmt(-dM, 1)} kg. Para proteger o músculo: proteína entre 1,6 e 2,2 g por kg, musculação em dia e um déficit menor.${mesma ? '' : ' Atenção: as medições vieram de fontes diferentes.'}`);
+  }
+  const cins = regsOrd().filter(r => r.cin != null);
+  if (cins.length >= 2) {
+    const dc = cins[cins.length - 1].cin - cins[0].cin, dw = r14 != null ? Math.abs(r14) : 1;
+    if (dc <= -1.5 && dw < 0.15) add('bom', 76, 'A balança parou, a cintura não', `Seu peso está quase igual, mas a cintura caiu ${fmt(-dc, 1)} cm desde ${fmtCurta(cins[0].d)}. Sinal de que você está trocando gordura por músculo.`);
+    else if (dc <= -2) add('bom', 55, `Cintura ${fmt(dc, 1)} cm`, `Sua cintura caiu ${fmt(-dc, 1)} cm desde ${fmtCurta(cins[0].d)}. É uma das medidas que melhor mostra perda de gordura.`);
+  }
+
+  // 5. proteína
+  if (S.goals && atual) {
+    const gkg = S.goals.p / atual;
+    if (obj === 'perder' && gkg < 1.4) add('olhar', 72, 'Proteína do plano está baixa', `Sua meta é ${fmt(S.goals.p)} g por dia (${fmt(gkg, 1)} g por kg). Para quem treina e está em déficit, o recomendado é de 1,6 a 2,2 g por kg, cerca de ${fmt(Math.round(atual * 1.6 / 5) * 5)} g para você. Converse com ${nutri}.`);
+    const dias = []; for (let i = 1; i <= 14; i++) { const h = S.hist[somaDias(S.day, -i)]; if (h && h.diet && h.kcal) dias.push(h); }
+    if (dias.length >= 7) { const ok = dias.filter(h => h.prot).length;
+      if (ok / dias.length < 0.5) add('olhar', 68, 'Proteína abaixo da meta', `Você bateu a proteína em ${ok} de ${dias.length} dias registrados. Ela protege o músculo e segura a fome: comece o dia com uma fonte de proteína.`, ['Ver receitas com proteína', 'go', 'receitas']);
+      else if (ok / dias.length >= 0.8) add('bom', 45, 'Proteína em dia', `Você bateu a proteína em ${ok} de ${dias.length} dias registrados.`); }
+  }
+
+  // 6. gasto real × meta
+  if (G.pronto && S.goals) {
+    const def = G.gasto - S.goals.kcal;
+    if (obj === 'perder' && def < 150) add('olhar', 74, 'Meta perto do seu gasto real', `Seu gasto estimado é de ~${fmt(G.gasto)} kcal e a meta é ${fmt(S.goals.kcal)} kcal: sobra pouco déficit para perder peso. Vale rever a meta com ${nutri}.`);
+    else if (obj === 'perder' && def > 1000) add('olhar', 73, 'Déficit muito grande', `A meta (${fmt(S.goals.kcal)} kcal) fica ${fmt(def)} kcal abaixo do seu gasto estimado (~${fmt(G.gasto)}). Déficits assim são difíceis de manter e custam músculo.`);
+  } else if (!G.pronto && T.primeiro <= somaDias(S.day, -21) && G.dias < 14) add('dados', 40, 'Registre mais a dieta', `Com 14 dias de dieta registrada em 3 semanas, o coach calcula quanto você gasta de verdade. Você tem ${G.dias}.`, ['Registrar refeição', 'go', 'hoje']);
+
+  // 7. conquistas e o barulho da balança
+  const p0 = primeiraCom('w');
+  if (p0 && obj === 'perder') { const perdido = p0.w - atual, marco = Math.floor(perdido / 2) * 2;
+    if (marco >= 2) add('bom', 58, `${marco} kg a menos`, `Desde ${fmtCurta(p0.d)} sua tendência de peso caiu ${fmt(perdido, 1)} kg. Cada quilo veio de dias cumpridos.`); }
+  const ant = regsOrd().filter(r => r.w != null && r.d < uw.d && r.d >= somaDias(uw.d, -7)).pop();
+  if (ant && uw.d >= somaDias(S.day, -1) && uw.w - ant.w >= 0.7 && obj !== 'ganhar')
+    add('bom', 92, 'A balança subiu? Calma', `A pesagem de ${rotuloDia(uw.d).toLowerCase()} ficou ${fmt(uw.w - ant.w, 1)} kg acima da de ${fmtCurta(ant.d)}. Em poucos dias isso é água, sal e intestino, não gordura. A tendência, que é o que importa, está em ${fmt(T.tr[uw.d], 1)} kg${r14 != null ? ` (${sinal(r14, 2)} kg/sem)` : ''}.`);
+  let semanasPesando = 0; for (let k = 0; k < 8; k++) { const ini = somaDias(N_segunda(S.day), -7 * (k + 1)), fim = somaDias(ini, 6); if (regsOrd().some(r => r.w != null && r.d >= ini && r.d <= fim)) semanasPesando++; else break; }
+  if (semanasPesando >= 4) add('bom', 35, `${semanasPesando} semanas seguidas se pesando`, 'Constância nas pesagens deixa a tendência confiável e é um dos hábitos mais ligados a resultado.');
+
+  return out.sort((a, b) => b.p - a.p);
+}
+function htmlCoach(lista, max) {
+  const vis = lista.filter(x => x.t !== 'dados').slice(0, max), dados = lista.filter(x => x.t === 'dados');
+  // Quando há pontos de atenção, pelo menos um "Mandando bem" aparece junto (elogio + o que mudar).
+  const bom = lista.find(x => x.t === 'bom');
+  if (bom && vis.length >= max && !vis.includes(bom)) vis[vis.length - 1] = bom;
+  const item = x => `<div class="coach-i" style="--cc:${COACH_TIPOS[x.t][1]}"><p class="tiny" style="color:var(--mut);font-weight:700;letter-spacing:.04em;text-transform:uppercase">${COACH_TIPOS[x.t][0]}</p><p class="h3">${x.tit}</p><p class="small">${x.txt}</p>${x.acao ? `<button class="btn ghost sm" data-a="${x.acao[1]}" ${x.acao[1] === 'go' ? `data-tab="${x.acao[2] === 'receitas' || x.acao[2] === 'hoje' ? 'dieta' : 'hoje'}" data-dv="${x.acao[2] || ''}"` : `data-k="${x.acao[2]}"`}>${x.acao[0]}</button>` : ''}</div>`;
+  return `${vis.map(item).join('')}${dados.length && vis.length < max ? dados.slice(0, max - vis.length).map(item).join('') : ''}`;
+}
+
 /* ------------------------------ telas ------------------------------ */
 function resumoRes() {
   const T = serieTendencia(), uw = ultimaCom('w'), atual = T ? T.tr[T.ultimo] : null;
-  const ritmo = T && N_diasEntre(T.primeiro, T.ultimo) >= 7 ? T.tr[T.ultimo] - T.tr[somaDias(T.ultimo, -7)] : null;
+  const ritmo = ritmoSemanal(T, 14); // mesma janela do coach
   return { T, uw, atual, ritmo, obj: objetivoPeso(atual) };
 }
 /* Cartão na tela Hoje */
@@ -194,7 +300,9 @@ function cardResultados() {
   const R = resumoRes();
   if (!R.uw) return `<button class="row" data-a="sheet" data-k="res"><span class="tile">${ic('chart')}</span><span><span class="t">Seus resultados</span><span class="s">Registre o peso para acompanhar a evolução · só você vê</span></span><span class="chev">${ic('chev', 18)}</span></button>`;
   const bom = R.ritmo == null ? null : R.obj === 'ganhar' ? R.ritmo > 0.05 : R.obj === 'perder' ? R.ritmo < -0.05 : Math.abs(R.ritmo) <= 0.2;
-  return `<button class="row" data-a="sheet" data-k="res"><span class="tile">${ic('chart')}</span><span><span class="t">Peso ${fmt(R.atual, 1)} kg <span class="muted" style="font-weight:500">(tendência)</span></span><span class="s">${R.ritmo == null ? `Última pesagem ${rotuloDia(R.uw.d).toLowerCase()}` : `<span class="${bom ? 'c-good' : ''}">${sinal(R.ritmo)} kg na última semana</span>`} · ver evolução</span></span><span class="chev">${ic('chev', 18)}</span></button>`;
+  const top = coachRes().find(x => x.t !== 'dados');
+  if (top) return `<button class="row" data-a="sheet" data-k="res"><span class="tile">${ic('chart')}</span><span><span class="t">${top.tit}</span><span class="s">Peso ${fmt(R.atual, 1)} kg pela tendência · ver o coach</span></span><span class="chev">${ic('chev', 18)}</span></button>`;
+  return `<button class="row" data-a="sheet" data-k="res"><span class="tile">${ic('chart')}</span><span><span class="t">Peso ${fmt(R.atual, 1)} kg <span class="muted" style="font-weight:500">(tendência)</span></span><span class="s">${R.ritmo == null ? `Última pesagem ${rotuloDia(R.uw.d).toLowerCase()}` : `<span class="${bom ? 'c-good' : ''}">${sinal(R.ritmo)} kg por semana</span>`} · ver evolução</span></span><span class="chev">${ic('chev', 18)}</span></button>`;
 }
 function tile(rot, val, sub) { return `<div class="panel" style="gap:2px;padding:12px 14px"><span class="tiny muted">${rot}</span><span class="h3 num">${val}</span>${sub ? `<span class="tiny muted">${sub}</span>` : ''}</div>`; }
 
@@ -202,12 +310,12 @@ SH.res = () => {
   const R = resumoRes(), T = R.T, B = S.body;
   const topo = `${head('Resultados', 'Sua evolução')}<p class="tiny muted">${ic('lock', 13)} Só você vê estes dados. O grupo não tem acesso.</p>`;
   const botoes = `<div class="qa"><button class="btn" data-a="sheet" data-k="medida">${ic('plus', 16)} Registrar medidas</button><button class="btn ghost sm" data-a="sheet" data-k="medcfg">Altura e meta</button></div>`;
-  if (!B.regs.length) return `${topo}<div class="note"><span>Registre seu peso (e, se tiver, % de gordura, massa muscular e cintura) para ver a evolução. Com algumas semanas de pesagens e do dia a dia no app, aparece aqui a relação entre a sua disciplina e o seu resultado.</span></div>${botoes}`;
+  if (!B.regs.length) return `${topo}<div class="stack" style="gap:8px">${htmlCoach(coachRes(), 1)}</div><div class="note"><span>Registre seu peso (e, se tiver, % de gordura, massa muscular e cintura) para ver a evolução. Com algumas semanas de pesagens e do dia a dia no app, aparece aqui a relação entre a sua disciplina e o seu resultado.</span></div>${botoes}`;
 
   // números do momento
   const tiles = [];
   if (R.atual != null) { const p0 = primeiraCom('w'); tiles.push(tile('Peso (tendência)', `${fmt(R.atual, 1)} kg`, p0 && p0.d < R.uw.d ? `${sinal(R.atual - p0.w)} kg desde ${fmtCurta(p0.d)}` : `pesagem de ${fmtCurta(R.uw.d)}: ${fmt(R.uw.w, 1)} kg`)); }
-  if (R.ritmo != null) tiles.push(tile('Ritmo', `${sinal(R.ritmo, 2)} kg/sem`, B.meta && R.atual != null && Math.abs(R.ritmo) > 0.05 && Math.sign(B.meta - R.atual) === Math.sign(R.ritmo) ? `meta em ~${Math.ceil(Math.abs(B.meta - R.atual) / Math.abs(R.ritmo))} semanas` : B.meta ? `meta ${fmt(B.meta, 1)} kg` : 'última semana'));
+  if (R.ritmo != null) tiles.push(tile('Ritmo', `${sinal(R.ritmo, 2)} kg/sem`, B.meta && R.atual != null && Math.abs(R.ritmo) > 0.05 && Math.sign(B.meta - R.atual) === Math.sign(R.ritmo) ? `meta em ~${Math.ceil(Math.abs(B.meta - R.atual) / Math.abs(R.ritmo))} semanas` : B.meta ? `meta ${fmt(B.meta, 1)} kg` : 'média das últimas 2 semanas'));
   if (R.atual != null && B.h) { const imc = R.atual / Math.pow(B.h / 100, 2); tiles.push(tile('IMC', fmt(imc, 1), imcCat(imc))); }
   [['bf', '% de gordura', '%', 1], ['mm', 'Massa muscular', ' kg', 1], ['cin', 'Cintura', ' cm', 1]].forEach(([k, rot, u, d]) => {
     const a = ultimaCom(k), p = primeiraCom(k); if (!a) return;
@@ -242,7 +350,12 @@ SH.res = () => {
 
   const G = gastoEstimado(T);
   const hist = regsOrd().reverse();
+  const CO = coachRes(), extra = CO.filter(x => x.t !== 'dados').length - 3;
   return `${topo}
+  <p class="eb">Seu coach</p>
+  <div class="stack" style="gap:8px">${htmlCoach(CO, S.coachTudo ? 99 : 3)}</div>
+  ${extra > 0 ? `<button class="link" data-a="coachtudo">${S.coachTudo ? 'Mostrar menos' : `Ver mais ${extra} insight${extra > 1 ? 's' : ''}`}</button>` : ''}
+  <p class="eb">Seus números</p>
   <div class="grid2">${tiles.join('')}</div>
   ${R.atual != null && B.h ? '<p class="tiny muted">O IMC não separa músculo de gordura: para quem treina, a % de gordura e a cintura dizem mais.</p>' : ''}
   ${botoes}
@@ -295,6 +408,7 @@ SH.medcfg = s => {
 document.addEventListener('input', e => { const k = e.target.dataset && e.target.dataset.med; if (k && S.sheet) S.sheet[k] = e.target.value; });
 
 Object.assign(A, {
+  coachtudo: () => { S.coachTudo = !S.coachTudo; renderSheet(); },
   resp: d => { S.resP = d.v; renderSheet(); },
   medsrc: d => { S.sheet.src = d.v; renderSheet(); },
   medok: () => {
