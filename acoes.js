@@ -21,20 +21,31 @@ function renderNav() {
   n.innerHTML = T.map(([k, l, i]) => `<button class="${S.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}" aria-current="${S.tab === k ? 'page' : 'false'}">${ic(i, 20)}${l}</button>`).join('');
 }
 const SCR = { hoje: scrHoje, dieta: scrDieta, treino: scrTreino, habitos: scrHabitos, racha: scrRacha };
+/* A sincronização redesenha a tela a cada 30 s: o campo em que a pessoa está digitando volta com o texto, o cursor e o teclado. */
+function campoEmFoco(root) {
+  const a = document.activeElement;
+  if (!a || !a.id || !root.contains(a) || !/^(INPUT|TEXTAREA)$/.test(a.tagName) || /^(file|checkbox|radio|range|button|submit)$/.test(a.type)) return null;
+  let s = null, e = null; try { s = a.selectionStart; e = a.selectionEnd; } catch (x) { /* campo sem cursor */ }
+  return { id: a.id, v: a.value, s, e };
+}
+function devolverFoco(root, c) {
+  if (!c) return; const a = root.querySelector('#' + CSS.escape(c.id)); if (!a) return;
+  a.value = c.v; a.focus({ preventScroll: true }); try { if (c.s != null) a.setSelectionRange(c.s, c.e); } catch (x) { /* campo sem cursor */ }
+}
 function render(keep = true) {
-  const m = $('#main'); if (!m) return; const y = m.scrollTop;
+  const m = $('#main'); if (!m) return; const y = m.scrollTop, foco = campoEmFoco(m);
   try { m.innerHTML = S.sessao ? SCR[S.tab]() : telaLogin(); }
   catch (e) { console.error(e); m.innerHTML = `<div class="note warn"><span>Algo deu errado nesta tela: ${esc(e.message)}. Toque em outra aba ou feche e abra o app.</span></div>`; }
-  m.scrollTop = keep ? y : 0; renderNav(); renderTop();
+  m.scrollTop = keep ? y : 0; devolverFoco(m, foco); renderNav(); renderTop();
   if (S.comboOpen != null) { const q = $('#comboq'); if (q) { q.focus({ preventScroll: true }); q.setSelectionRange(q.value.length, q.value.length); q.closest('.panel').scrollIntoView({ block: 'nearest' }); } }
 }
 function renderSheet() {
   const L = $('#layer'); if (!S.sheet) { L.innerHTML = ''; return; }
-  const k = S.sheet.k, prev = L.querySelector('.sheet'), same = prev && prev.dataset.k === k, y = same ? prev.scrollTop : 0;
+  const k = S.sheet.k, prev = L.querySelector('.sheet'), same = prev && prev.dataset.k === k, y = same ? prev.scrollTop : 0, foco = same ? campoEmFoco(L) : null;
   let html;
   try { html = SH[k](S.sheet); } catch (e) { console.error(e); html = head('Ops', 'Algo deu errado') + `<div class="note warn"><span>${esc(e.message)}</span></div>`; }
   L.innerHTML = `<div class="scrim" data-a="close"></div><div class="sheet ${k === 'ana' ? 'full' : ''}" data-k="${k}" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
-  const nw = L.querySelector('.sheet'); if (y) nw.scrollTop = y; if (same) nw.style.animation = 'none';
+  const nw = L.querySelector('.sheet'); if (y) nw.scrollTop = y; if (same) nw.style.animation = 'none'; devolverFoco(L, foco);
   if (k === 'photo' && S.sheet.stage === 'edit') bindCrop();
 }
 function openSheet(o) { S.sheet = o; renderSheet(); }
@@ -356,20 +367,22 @@ document.addEventListener('submit', async e => { e.preventDefault(); const f = e
   if (f === 'log') { const inp = $('#logtxt'), v = inp.value.trim(); if (!v) { toast('Escreva o que comeu, com quantidade'); return; }
     const meal = S.logMeal, r = await lerComida(v);
     if (!r.itens.length) { toast(S.G && S.G.ia ? 'Não entendi. Tente "150g frango e 120g arroz"' : 'Não reconheci. Tente "150g frango e 120g arroz"'); render(); return; }
-    addItensLog(r.itens, meal); addXP(10);
+    inp.value = ''; inp.blur(); addItensLog(r.itens, meal); addXP(10);
     toast(`${r.itens.length} ${r.itens.length > 1 ? 'itens lançados' : 'item lançado'} · ${fmt(r.itens.reduce((a, i) => a + (+i.kcal || 0), 0))} kcal${r.nao.length ? ` · não entendi: ${r.nao.join(', ')}` : ''}`, 4000);
     checkMacros(); render(); marcarMudanca(); }
   if (f === 'mealadd') { const v = ($('#mealaddtxt') || {}).value.trim(); if (!v || !S.sheet) return; const id = S.sheet.id, r = await lerComida(v);
     if (!r.itens.length) { toast('Não reconheci esse alimento. Tente "150g frango".'); renderSheet(); return; }
-    addItensLog(r.itens, id); if (r.nao.length) toast('Não entendi: ' + r.nao.join(', ')); renderSheet(); marcarMudanca(); }
+    const ma = $('#mealaddtxt'); if (ma) { ma.value = ''; ma.blur(); } addItensLog(r.itens, id); if (r.nao.length) toast('Não entendi: ' + r.nao.join(', ')); renderSheet(); marcarMudanca(); }
   if (f === 'additem') { const v = ($('#itemtxt') || {}).value.trim(); if (!v) return; const m = S.meals.find(x => x.id === S.sheet.id), r = await lerComida(v);
+    if (r.itens.length) { const ia = $('#itemtxt'); if (ia) { ia.value = ''; ia.blur(); } }
     r.itens.forEach(it => m.items.push({ label: it.label, food: it.food || it.label, kcal: +it.kcal || 0, p: +it.p || 0, c: +it.c || 0, f: +it.f || 0 }));
     if (!r.itens.length) toast('Não reconheci esse alimento.'); else if (r.nao.length) toast('Não entendi: ' + r.nao.join(', '));
     renderSheet(); marcarMudanca(); }
   if (f === 'post') { const v = $('#posttxt').value.trim(); if (!v && !S.postFoto) return; const cid = uidNovo();
     S.feed.unshift({ id: S.eu + '-' + cid, who: 'u', ts: Date.now(), text: v, photo: S.postFoto, reacoes: { like: [], fire: [] }, coments: [], pending: true });
-    enfileirar('postar', { id: cid, texto: v, foto: S.postFoto || null }); S.postFoto = null; render(); }
+    enfileirar('postar', { id: cid, texto: v, foto: S.postFoto || null }); S.postFoto = null; $('#posttxt').value = ''; $('#posttxt').blur(); render(); }
   if (f === 'coment') { const id = e.target.dataset.id, v = e.target.c.value.trim(); if (!v) return; const p = S.feed.find(x => x.id === id);
+    e.target.c.value = ''; e.target.c.blur();
     if (p) p.coments = [...(p.coments || []), { who: S.eu, txt: v, ts: Date.now() }]; enfileirar('comentar', { id, texto: v }); render(); }
 });
 document.addEventListener('input', e => { const t = e.target, d = t.dataset; if (!d.i) return;
