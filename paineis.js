@@ -172,7 +172,7 @@ SH.mealog = s => { const m = S.meals.find(x => x.id === s.id); if (!m) return he
   <p class="small muted" id="mealtot">${fmt(its.reduce((a, x) => a + x.it.kcal, 0))} kcal · ${fmt(its.reduce((a, x) => a + x.it.p, 0))} g de proteína</p>
   <div class="stack" style="gap:10px">${its.map(({ it, li }) => { const g = gramasItem(it);
     return `<div class="between small" style="gap:8px"><span style="min-width:0">${esc(it.food || it.label)}${g ? '' : ` <span class="muted">· ${esc(it.label)}</span>`}</span>
-      <span class="hrow" style="gap:6px;flex:none">${g ? `<input class="in num" style="width:84px;padding:8px" inputmode="decimal" value="${fmt(g)}" data-i="logg" data-li="${li}" aria-label="Gramas de ${esc(it.food || it.label)}"><span class="tiny muted">g</span>` : ''}
+      <span class="hrow" style="gap:6px;flex:none">${g ? `<input class="in num" style="width:84px;padding:8px" inputmode="decimal" value="${fmt(g)}" id="logg-${li}" data-i="logg" data-li="${li}" aria-label="Gramas de ${esc(it.food || it.label)}"><span class="tiny muted">g</span>` : ''}
       <button class="sq" data-a="logdel" data-li="${li}" aria-label="Remover ${esc(it.label)}">${ic('trash', 14)}</button></span></div>`; }).join('') || '<p class="small muted">Nenhum alimento lançado nesta refeição.</p>'}</div>
   <form data-f="mealadd" class="inrow"><input id="mealaddtxt" class="in" placeholder="Adicionar: 1 banana, 30g aveia" autocomplete="off" aria-label="Adicionar alimento"><button class="btn" type="submit" ${S.iaOcupada ? 'disabled' : ''}>${S.iaOcupada ? 'Lendo…' : 'Adicionar'}</button></form>
   <p class="tiny muted">Mude os gramas para corrigir a quantidade; as calorias e os macros acompanham.</p>
