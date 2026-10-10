@@ -36,6 +36,7 @@ function iaApi_(s, req) {
 /* Aba LogIA: uma linha por leitura, para entender os erros que as pessoas relatam. */
 function iaRegistrar_(s, req, t0, resultado) {
   try {
+    if (!ABAS.LogIA) ABAS.LogIA = ['Quando', 'Pessoa', 'Tipo', 'KB', 'Segundos', 'Resultado']; // funciona mesmo com um Dados.gs antigo
     inserir_('LogIA', { Quando: new Date().toISOString(), Pessoa: s.pessoa, Tipo: req.tipo, KB: Math.round(String(req.arquivo || req.texto || '').length * 0.75 / 1024),
       Segundos: Math.round((Date.now() - t0) / 1000), Resultado: String(resultado).slice(0, 300) });
   } catch (e) { Logger.log('LogIA: ' + e); }
