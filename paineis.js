@@ -275,13 +275,21 @@ SH.run = s => { const w = S.week[diaIdx(S.day)] || {}; s.rt = s.rt || (w.type ==
   const km = parseFloat(String(s.km || '').replace(',', '.')), sec = parseTempo(s.tempo), ok = km > 0 && sec > 0;
   return `${head('Corrida', 'Registrar corrida')}
   <p class="eb">Tipo</p><div class="chips">${RUNT.map(t => `<button class="chip ${s.rt === t ? 'on' : ''}" data-a="runrt" data-v="${t}">${t}</button>`).join('')}</div>
-  <div class="grid2">${inp('runkm', 'Distância (km)', s.km || (w.type === 'run' && w.km) || '', 'inputmode="decimal" placeholder="Ex.: 8,2"')}${inp('runtempo', 'Tempo (h:mm:ss ou mm:ss)', s.tempo || '', 'inputmode="numeric" placeholder="Ex.: 47:30"')}</div>
+  <div class="grid2">${inp('runkm', 'Distância (km)', s.km || (w.type === 'run' && w.km) || '', 'inputmode="decimal" placeholder="Ex.: 8,2"')}${inp('runtempo', 'Tempo · só os números', s.tempo || '', 'inputmode="numeric" placeholder="4730 = 47:30" autocomplete="off"')}</div>
   ${inp('runfc', 'FC média (opcional)', s.fc || '', 'inputmode="numeric" placeholder="Ex.: 148"')}
   <p class="small muted" id="runpace">${ok ? `Pace: <b>${pace(sec / km)}/km</b>` : 'Preencha distância e tempo para ver o pace.'}</p>
   <p class="eb">Evidência${regras().photo ? ' · obrigatória no modo competitivo' : ' · opcional'}</p>
   <label class="drop" for="runfile" style="padding:14px">${s.photo ? `<div class="ph-box"><img src="${s.photo}" alt="Print da corrida"></div><span class="small muted">Toque para trocar</span>` : `${ic('watch', 26, 1.5)}<span class="small"><b>Print do relógio ou do Strava</b></span>`}</label><input type="file" id="runfile" class="hidefile" accept="image/*" data-file="run">
   <div class="note"><span>Vale <b>+35 pts</b> pro time e <b>+60 XP</b>. O pace alimenta o RIT do seu card.</span></div>
   <button class="btn block" data-a="logrun" ${need ? 'disabled' : ''}>${need ? 'Envie a evidência para registrar' : 'Registrar corrida'}</button>`; };
+/* O teclado numérico do iPhone não tem ":". A pessoa digita só os números e os ":" entram sozinhos, da direita
+   para a esquerda, como num cronômetro: 4730 → 47:30, 10512 → 1:05:12. Até 2 números valem minutos (47 = 47 min). */
+function fmtTempo(v) {
+  const d = String(v || '').replace(/\D/g, '').replace(/^0+(?=\d{3})/, '').slice(0, 6);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return d.slice(0, -2) + ':' + d.slice(-2);
+  return d.slice(0, -4) + ':' + d.slice(-4, -2) + ':' + d.slice(-2);
+}
 function parseTempo(t) { const p = String(t || '').trim().split(/[:h'.]/).map(x => parseInt(x, 10)).filter(x => !isNaN(x)); if (!p.length) return 0; if (p.length === 1) return p[0] * 60; if (p.length === 2) return p[0] * 60 + p[1]; return p[0] * 3600 + p[1] * 60 + p[2]; }
 
 /* ---------- hábitos ---------- */
