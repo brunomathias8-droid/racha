@@ -13,7 +13,8 @@ var ABAS = {
   Posts: ['ID', 'Pessoa', 'Ts', 'Texto', 'Cena', 'Foto', 'Reacoes', 'Comentarios', 'Excluido', 'Atualizado'],
   Desafios: ['ID', 'De', 'Para', 'Metrica', 'Dias', 'Inicio', 'Fim', 'Aposta', 'Status', 'CriadoEm', 'Atualizado'],
   Estado: ['Pessoa', 'Atualizado', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'P11', 'P12'],
-  Push: ['Token', 'Pessoa', 'Plataforma', 'Tipos', 'CriadoEm', 'AtualizadoEm', 'Ativo', 'UltimoErro']
+  Push: ['Token', 'Pessoa', 'Plataforma', 'Tipos', 'CriadoEm', 'AtualizadoEm', 'Ativo', 'UltimoErro'],
+  LogIA: ['Quando', 'Pessoa', 'Tipo', 'KB', 'Segundos', 'Resultado']
 };
 
 var CONFIG_PADRAO = [
