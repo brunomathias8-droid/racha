@@ -24,7 +24,7 @@ function iaApi_(s, req) {
   if (!iaAtiva_()) throw apiErro_('A leitura por IA ainda não foi ligada no servidor (Config › ia_provedor e ia_chave).', 'CONFIG');
   var cache = CacheService.getScriptCache(), k = 'racha_ia_' + s.pessoa + '_' + hoje_(), n = Number(cache.get(k) || 0);
   if (n >= (Number(cfg_().ia_limite_dia) || 40)) throw apiErro_('Limite de leituras por IA de hoje atingido. Amanhã libera de novo.', 'LIMITE');
-  var f = { dieta: iaDieta_, comida: iaComida_, prato: iaPrato_ }[req.tipo];
+  var f = { dieta: iaDieta_, comida: iaComida_, prato: iaPrato_, atividade: iaAtividade_ }[req.tipo];
   if (!f) throw apiErro_('Tipo de leitura desconhecido.', 'ACAO');
   var t0 = Date.now(), r;
   try { r = f(req); }
@@ -106,6 +106,33 @@ function iaPrato_(req) {
   var o = iaJson_(iaChamar_(false, instr, [arq, { texto: 'Estime este prato.' }], 2000)) || {};
   if (o.nao_e_comida) throw apiErro_('Não parece uma foto de comida.', 'IA');
   return { itens: iaItens_(o.itens), confianca: o.confianca || 'media' };
+}
+
+/* Print de atividade (Apple Fitness/Saúde, Strava, Garmin, Samsung Health, Polar, Coros, Nike Run Club...):
+   devolve os números para o app preencher o registro. A pessoa confere antes de salvar. */
+function iaAtividade_(req) {
+  var arq = iaArquivo_(req.arquivo, ['image/jpeg', 'image/png', 'image/webp'], 5);
+  var instr = [
+    'Você recebe o print de uma atividade física, de app de relógio ou de esporte (Apple Fitness ou Saúde, Strava, Garmin Connect, Samsung Health, Polar, Coros, Nike Run Club ou parecido), em português ou inglês.',
+    'Responda só JSON minificado, sem texto fora do JSON:',
+    '{"e_atividade":true,"tipo":"corrida|caminhada|ciclismo|natação|musculação|beach tennis|tênis|futebol|crossfit|hyrox|outro","data":"AAAA-MM-DD ou null","distancia_km":n,"tempo_s":n,"fc_media":n,"fc_max":n,"kcal":n,"elevacao_m":n}',
+    'Regras:',
+    '- Números, sem unidade. Campo que não aparece no print: null. Não invente nem calcule o que não está escrito (exceto converter unidades).',
+    '- tempo_s em segundos. Se houver "tempo em movimento" (moving time) e "tempo decorrido" (elapsed), use o tempo em movimento.',
+    '- distancia_km em quilômetros: milhas × 1,609; metros ÷ 1000.',
+    '- kcal: prefira calorias ativas (active calories) às totais.',
+    '- fc_media: frequência cardíaca média em bpm.',
+    '- data: só se a data aparecer no print; ano ausente = ' + hoje_().slice(0, 4) + '.',
+    '- Se a imagem não é de uma atividade física, responda {"e_atividade":false}.'
+  ].join('\n');
+  var o = iaJson_(iaChamar_(false, instr, [arq, { texto: 'Leia os números desta atividade.' }], 1000)) || {};
+  if (o.e_atividade === false) throw apiErro_('Não parece o print de uma atividade. Preencha à mão.', 'IA');
+  var n = function (v, max) { var x = iaNum_(v); return x > 0 && x <= max ? x : null; };
+  return { atividade: {
+    tipo: String(o.tipo || 'outro').toLowerCase().slice(0, 30),
+    data: /^\d{4}-\d{2}-\d{2}$/.test(String(o.data || '')) ? o.data : null,
+    km: n(o.distancia_km, 500), seg: n(o.tempo_s, 86400), fc: n(o.fc_media, 240), fcMax: n(o.fc_max, 250), kcal: n(o.kcal, 10000), elev: n(o.elevacao_m, 10000)
+  } };
 }
 
 /* ------------------------------ limpeza do que a IA devolve ------------------------------ */

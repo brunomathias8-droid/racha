@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>RACHA</title>
 <meta name="description" content="Treino, dieta e hábitos valendo gol, com os amigos.">
 <meta name="theme-color" content="#0B1020">
@@ -24,7 +24,8 @@
   --shield:polygon(12% 0,88% 0,100% 6%,100% 86%,50% 100%,0 86%,0 6%);
 }
 [hidden]{display:none!important}
-html,body{height:100%}
+html,body{height:100%;overflow-x:hidden;touch-action:pan-x pan-y;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+input,select,textarea{font-size:16px}
 body{margin:0;background:var(--stage);overflow:hidden;-webkit-font-smoothing:antialiased}
 button,input{font:inherit;color:inherit}
 
@@ -147,7 +148,7 @@ button.panel{text-align:left;cursor:pointer;width:100%;color:inherit}
 .stack{display:flex;flex-direction:column;gap:8px}
 .hrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .between{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--s1);border:var(--bd);border-radius:var(--r-sm);padding:12px 14px;width:100%;text-align:left;cursor:pointer;color:inherit}
+.row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--s1);border:var(--bd);border-radius:var(--r-sm);padding:12px 14px;width:100%;box-sizing:border-box;text-align:left;cursor:pointer;color:inherit}
 .row:hover{background:var(--s2)}
 .row .t{font-weight:800;line-height:1.25;display:block}
 .app[data-theme="b"] .row .t{font-weight:700}
@@ -234,7 +235,7 @@ button.chip{cursor:pointer}
 .app[data-theme="c"] .seg{gap:16px;box-shadow:inset 0 -1px 0 #263157}
 .app[data-theme="c"] .seg button{flex:none;font-family:var(--fd);font-size:15px;letter-spacing:.06em;text-transform:uppercase;padding:9px 0}
 .app[data-theme="c"] .seg button.on{color:var(--accent);box-shadow:inset 0 -3px 0 var(--accent)}
-.in{width:100%;box-sizing:border-box;background:var(--s2);border:var(--bd-in);color:var(--fg);font-size:15px;padding:11px 13px;border-radius:var(--r-sm)}
+.in{width:100%;box-sizing:border-box;background:var(--s2);border:var(--bd-in);color:var(--fg);font-size:16px;padding:11px 13px;border-radius:var(--r-sm)}
 .app[data-theme="a"] .in{background:#FFFFFF}
 .app[data-theme="b"] .in{background:#FFFFFF}
 .in:focus{outline:none;border-color:var(--accent2)}
@@ -582,6 +583,7 @@ input.in[type=time]{min-height:44px}
 <script src="acoes.js"></script>
 <script src="resultados.js"></script>
 <script src="push.js"></script>
-<script>iniciar();</script>
+<script>document.addEventListener('gesturestart', e => e.preventDefault()); // iPhone: sem zoom de pinça (o recorte da foto usa os próprios gestos)
+iniciar();</script>
 </body>
 </html>
