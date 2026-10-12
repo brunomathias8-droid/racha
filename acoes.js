@@ -157,6 +157,41 @@ async function lerComida(txt) {
   catch (e) { toast(e.message); return { itens: ok, nao: miss }; }
   finally { S.iaOcupada = false; }
 }
+/* Print do relógio, do Strava ou do app Fitness: a IA lê os números e preenche o registro; a pessoa confere antes de salvar.
+   Foto que não é de atividade (selfie na academia) só fica como evidência, sem aviso. */
+const segParaTempo = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = String(s % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${x}` : `${m}:${x}`; };
+function pseDaFc(fc) {
+  const fcmax = (S.ana && S.ana.fcmax) || (S.ana && S.ana.age ? 220 - S.ana.age : null); if (!fc || !fcmax) return null;
+  const p = fc / fcmax; return p < 0.6 ? 3 : p < 0.7 ? 5 : p < 0.8 ? 6 : p < 0.87 ? 7 : p < 0.93 ? 8 : 9;
+}
+async function lerPrintAtividade(k, foto) {
+  if (!(S.G && S.G.ia) || !navigator.onLine) return;
+  const sh = S.sheet; Object.assign(sh, { lendo: true, lido: null, aviso: null }); renderSheet();
+  try {
+    const a = (await api('ia', { tipo: 'atividade', arquivo: foto }, { timeout: 90000 })).atividade;
+    if (S.sheet !== sh) return;
+    const p = [], min = a.seg ? Math.max(1, Math.round(a.seg / 60)) : null;
+    if (k === 'run') {
+      if (a.km) { sh.km = fmt(a.km, a.km % 1 ? 2 : 0); p.push(`${sh.km} km`); }
+      if (a.seg) { sh.tempo = segParaTempo(a.seg); p.push(sh.tempo); }
+      if (a.fc) { sh.fc = String(Math.round(a.fc)); p.push(`FC ${sh.fc}`); }
+      if (a.tipo && !/corrida|caminhada|outro/.test(a.tipo)) sh.aviso = `O print parece ser de ${a.tipo}. Se não for corrida, registre em outro esporte.`;
+    } else if (k === 'sport') {
+      if (min) { sh.dur = min; p.push(`${min} min`); }
+      const pse = pseDaFc(a.fc); if (pse) { sh.pse = pse; p.push(`FC ${Math.round(a.fc)} → intensidade ${pse}/10`); } else if (a.fc) p.push(`FC ${Math.round(a.fc)}`);
+      const sp = SPORTS.find(x => norm(x.n) === norm(a.tipo || '')); if (sp && sh.v === 'Outro') sh.v = sp.n;
+    } else if (k === 'wk') { if (min) { sh.min = min; p.push(`${min} min`); } }
+    if (a.kcal) { sh.kcal = Math.round(a.kcal); p.push(`${fmt(sh.kcal)} kcal`); }
+    if (a.data && a.data !== S.day && !sh.aviso) sh.aviso = `O print é de ${fmtCurta(a.data)}; o registro entra em hoje.`;
+    sh.lido = p.join(' · ');
+    if (!p.length) sh.aviso = 'Não achei números no print. Preencha à mão.';
+  } catch (e) { if (S.sheet === sh && e.codigo !== 'ACAO' && k !== 'wk') sh.aviso = e.message; }
+  finally { if (S.sheet === sh) { sh.lendo = false; renderSheet(); } }
+}
+function notaPrint(s) {
+  if (s.lendo) return '<div class="note"><span>Lendo os números do print…</span></div>';
+  return `${s.lido ? `<div class="note good"><span>Lido do print: <b>${esc(s.lido)}</b>. Confira antes de registrar.</span></div>` : ''}${s.aviso ? `<div class="note warn"><span>${esc(s.aviso)}</span></div>` : ''}`;
+}
 function ehFotoValida(d) { return typeof d === 'string' && d.startsWith('data:image'); }
 
 /* ============ ações ============ */
@@ -265,7 +300,7 @@ const A = {
         const tudo = st.sets.length && st.sets.every(x => x.done && x.reps >= e.reps && x.kg >= e.kg);
         if (tudo && e.kg) sug[e.n] = e.kg + (e.kg <= 20 ? 1 : e.kg <= 60 ? 2.5 : 5); } });
     if (Object.keys(sug).length) S.sug[k] = sug; else delete S.sug[k];
-    S.done[k] = { sets: r.sets, vol: r.vol, prs: r.prs, photo: !!s.photo }; closeSheet(); clearInterval(S.restT); $('#restbar').hidden = true;
+    S.done[k] = { sets: r.sets, vol: r.vol, prs: r.prs, photo: !!s.photo, kcal: s.kcal || null }; if (s.kcal) h.kcalAtiv = (h.kcalAtiv || 0) + s.kcal; closeSheet(); clearInterval(S.restT); $('#restbar').hidden = true;
     h.trained = true; h.sets = (h.sets || 0) + r.sets; h.setsPlan = (h.setsPlan || 0) + ss.reduce((a, e) => a + e.sets.length, 0); h.prs = (h.prs || 0) + r.prs; h.min = (h.min || 0) + s.min; if (s.min >= 60) h.longas = (h.longas || 0) + 1;
     const txt = `${w.name} · ${w.sub} concluído${r.prs ? ` com ${r.prs} PR${r.prs > 1 ? 's' : ''}` : ''}`;
     if (s.post !== false) { const cid = uidNovo(), texto = `${w.name} · ${w.sub} concluído. ${fmt(r.vol)} kg de volume${r.prs ? `, ${r.prs} PR${r.prs > 1 ? 's' : ''}` : ''}.`;
@@ -274,14 +309,14 @@ const A = {
     pushEvent(txt, 50 + Math.min(r.prs, 3) * 10, null, [['Treino de musculação concluído', 50], ...(r.prs ? [['Recorde pessoal × ' + Math.min(r.prs, 3), Math.min(r.prs, 3) * 10]] : [])], { kind: 'treino', ev: s.photo ? 'foto' : null, photo: s.photo || null, vol: Math.round(r.vol), prs: r.prs, min: s.min });
     addXP(120 + r.prs * 30, r.prs ? 'Recorde pessoal conta para o FOR.' : ''); toast('Treino concluído'); render(); },
   sdur: d => { S.sheet.dur = +d.v; renderSheet(); },
-  logsport: () => { const s = S.sheet, h = hd(); S.sportsLog.unshift({ sport: s.v, dur: s.dur, pse: s.pse, day: S.day });
+  logsport: () => { const s = S.sheet, h = hd(); S.sportsLog.unshift({ sport: s.v, dur: s.dur, pse: s.pse, day: S.day, kcal: s.kcal || null }); if (s.kcal) h.kcalAtiv = (h.kcalAtiv || 0) + s.kcal;
     h.trained = true; h.sport = true; h.min = (h.min || 0) + s.dur; if (s.dur >= 60) h.longas = (h.longas || 0) + 1;
     closeSheet(); pushEvent(`${s.v} · ${s.dur} min`, 35, null, [['Corrida ou outro esporte', 35]], { kind: 'esporte', ev: s.photo ? 'foto' : null, photo: s.photo || null, min: s.dur }); addXP(60); toast(`${s.v} registrado. +35 pts`); render(); },
   runrt: d => { S.sheet.rt = d.v; renderSheet(); },
   logrun: () => { const s = S.sheet, km = parseFloat(String(s.km || ($('#runkm') || {}).value || '').replace(',', '.')), sec = parseTempo(s.tempo || ($('#runtempo') || {}).value);
     if (!(km > 0 && km < 300) || !(sec > 60)) { toast('Preencha distância e tempo'); return; }
     const fc = parseInt(s.fc, 10) || null, h = hd();
-    S.runs.push({ day: S.day, ts: Date.now(), km, sec, fc, rt: s.rt, ev: !!s.photo });
+    S.runs.push({ day: S.day, ts: Date.now(), km, sec, fc, rt: s.rt, ev: !!s.photo, kcal: s.kcal || null }); if (s.kcal) h.kcalAtiv = (h.kcalAtiv || 0) + s.kcal;
     h.trained = true; h.runs = (h.runs || 0) + 1; h.km = (h.km || 0) + km; h.min = (h.min || 0) + Math.round(sec / 60); if (sec >= 3600) h.longas = (h.longas || 0) + 1;
     closeSheet(); pushEvent(`${s.rt} de ${fmt(km, 1)} km · ${pace(sec / km)}/km`, 35, null, [['Corrida ou outro esporte', 35]], { kind: 'corrida', ev: s.photo ? 'foto' : null, photo: s.photo || null, km, sec });
     addXP(60); toast(`Corrida registrada. +35 pts`); S.tab = 'treino'; S.tv = 'corrida'; render(false); },
@@ -426,7 +461,7 @@ document.addEventListener('change', async e => { const t = e.target, k = t.datas
         .catch(() => { toast('Não consegui abrir essa foto. Tente um JPG ou PNG.'); if (S.sheet && S.sheet.k === 'photo') openSheet({ k: 'photo', stage: 'pick' }); });
       return; }
     const foto = await comprimir(file);
-    if (k === 'wk' || k === 'sport' || k === 'run') { S.sheet.photo = foto; renderSheet(); }
+    if (k === 'wk' || k === 'sport' || k === 'run') { S.sheet.photo = foto; renderSheet(); lerPrintAtividade(k, foto); }
     if (k === 'evid') evFinalize(foto);
     if (k === 'post') { S.postFoto = foto; render(); }
     if (k === 'plate') { openSheet({ k: 'plate', img: foto, step: 'lendo' });

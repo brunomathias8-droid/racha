@@ -257,18 +257,20 @@ SH.finish = s => { const k = S.active, w = W[k], r = resumoSessao(k), need = reg
   return `${head(esc(w.name + ' · ' + w.sub), 'Fechar o treino')}
   <div class="grid3 num"><div class="stat"><span class="eb">Séries</span><b>${r.sets}</b></div><div class="stat"><span class="eb">Volume</span><b>${fmt(r.vol)}</b><span class="tiny muted">kg</span></div><div class="stat"><span class="eb">PRs</span><b class="c-acc">${r.prs}</b></div></div>
   ${r.sets === 0 ? `<div class="note warn"><span>Nenhuma série marcada. Marque as séries feitas para o treino contar.</span></div>` : ''}
-  <p class="eb">Duração</p><div class="chips">${[30, 45, 60, 75, 90].map(d => `<button class="chip ${s.min === d ? 'on' : ''}" data-a="fmin" data-v="${d}">${d} min</button>`).join('')}</div>
-  <label class="drop" for="wkphoto">${s.photo ? `<div class="ph-box"><img src="${s.photo}" alt="Foto do treino"></div><span class="small muted">Toque para trocar</span>` : `${ic('camera', 34, 1.5)}<span class="h3">Foto do treino</span><span class="small muted">${regras().photo ? 'Obrigatória: o grupo está no modo competitivo.' : 'Opcional. Vale como evidência e vai para a resenha.'}</span>`}</label>
-  <input type="file" id="wkphoto" class="hidefile" accept="image/*" capture="environment" data-file="wk">
+  <p class="eb">Duração</p><div class="chips">${[...new Set([30, 45, 60, 75, 90, s.min])].sort((a, b) => a - b).map(d => `<button class="chip ${s.min === d ? 'on' : ''}" data-a="fmin" data-v="${d}">${d} min</button>`).join('')}</div>
+  <label class="drop" for="wkphoto">${s.photo ? `<div class="ph-box"><img src="${s.photo}" alt="Foto do treino"></div><span class="small muted">Toque para trocar</span>` : `${ic('camera', 34, 1.5)}<span class="h3">Foto do treino</span><span class="small muted">${regras().photo ? 'Obrigatória: o grupo está no modo competitivo.' : 'Opcional. Vale como evidência e vai para a resenha.'} Também serve o print do relógio${S.G && S.G.ia ? ': a gente lê a duração e as calorias' : ''}.</span>`}</label>
+  <input type="file" id="wkphoto" class="hidefile" accept="image/*" data-file="wk">
+  ${notaPrint(s)}
   <div class="between"><span class="small">Postar na resenha</span><button class="tog ${s.post !== false ? 'on' : ''}" data-a="togpost" aria-label="Postar na resenha" aria-pressed="${s.post !== false}"></button></div>
   <div class="note"><span>Vale <b>+50 pts</b> pro ${esc(teamName(myTeam()))}${r.prs ? ` e <b>+${Math.min(r.prs, 3) * 10}</b> pelos PRs` : ''}. XP: <b>+${120 + r.prs * 30}</b>.</span></div>
   <button class="btn block" data-a="finish" ${need || r.sets === 0 ? 'disabled' : ''}>${need ? 'Envie a foto para concluir' : 'Concluir treino'}</button>`; };
 SH.sport = s => { const sp = SPORTS.find(x => x.n === s.v) || SPORTS[5]; s.dur = s.dur || 60; s.pse = s.pse || 6; const need = regras().photo && !s.photo;
-  return `${head('Registrar', sp.n)}<p class="eb">Duração</p><div class="chips">${[30, 45, 60, 90, 120].map(d => `<button class="chip ${s.dur === d ? 'on' : ''}" data-a="sdur" data-v="${d}">${d} min</button>`).join('')}</div>
+  return `${head('Registrar', sp.n)}<p class="eb">Duração</p><div class="chips">${[...new Set([30, 45, 60, 90, 120, s.dur])].sort((a, b) => a - b).map(d => `<button class="chip ${s.dur === d ? 'on' : ''}" data-a="sdur" data-v="${d}">${d} min</button>`).join('')}</div>
   <label class="eb" for="pse">Intensidade percebida · <span id="pseval">${s.pse}</span>/10</label><input type="range" id="pse" min="1" max="10" value="${s.pse}" data-i="pse">
   <div class="between tiny muted"><span>Leve</span><span>Moderado</span><span>Máximo</span></div>
   <p class="eb">Evidência${regras().photo ? ' · obrigatória no modo competitivo' : ' · opcional'}</p>
-  <label class="drop" for="sportfile" style="padding:14px">${s.photo ? `<div class="ph-box"><img src="${s.photo}" alt="Foto do jogo"></div><span class="small muted">Toque para trocar</span>` : `${ic('camera', 26, 1.5)}<span class="small"><b>Foto na quadra ou print do relógio</b></span>`}</label><input type="file" id="sportfile" class="hidefile" accept="image/*" data-file="sport">
+  <label class="drop" for="sportfile" style="padding:14px">${s.photo ? `<div class="ph-box"><img src="${s.photo}" alt="Foto do jogo"></div><span class="small muted">Toque para trocar</span>` : `${ic('camera', 26, 1.5)}<span class="small"><b>Foto na quadra ou print do relógio</b>${S.G && S.G.ia ? ' · a gente lê os números' : ''}</span>`}</label><input type="file" id="sportfile" class="hidefile" accept="image/*" data-file="sport">
+  ${notaPrint(s)}
   <div class="note"><span>Vale <b>+35 pts</b> pro time e <b>+60 XP</b>. Sessões de 60 min ou mais sobem RES.</span></div>
   <button class="btn block" data-a="logsport" ${need ? 'disabled' : ''}>${need ? 'Envie a evidência para registrar' : 'Registrar'}</button>`; };
 SH.run = s => { const w = S.week[diaIdx(S.day)] || {}; s.rt = s.rt || (w.type === 'run' && w.rt) || 'Rodagem'; const need = regras().photo && !s.photo;
@@ -279,7 +281,8 @@ SH.run = s => { const w = S.week[diaIdx(S.day)] || {}; s.rt = s.rt || (w.type ==
   ${inp('runfc', 'FC média (opcional)', s.fc || '', 'inputmode="numeric" placeholder="Ex.: 148"')}
   <p class="small muted" id="runpace">${ok ? `Pace: <b>${pace(sec / km)}/km</b>` : 'Preencha distância e tempo para ver o pace.'}</p>
   <p class="eb">Evidência${regras().photo ? ' · obrigatória no modo competitivo' : ' · opcional'}</p>
-  <label class="drop" for="runfile" style="padding:14px">${s.photo ? `<div class="ph-box"><img src="${s.photo}" alt="Print da corrida"></div><span class="small muted">Toque para trocar</span>` : `${ic('watch', 26, 1.5)}<span class="small"><b>Print do relógio ou do Strava</b></span>`}</label><input type="file" id="runfile" class="hidefile" accept="image/*" data-file="run">
+  <label class="drop" for="runfile" style="padding:14px">${s.photo ? `<div class="ph-box"><img src="${s.photo}" alt="Print da corrida"></div><span class="small muted">Toque para trocar</span>` : `${ic('watch', 26, 1.5)}<span class="small"><b>Print do relógio, do Strava ou do app Fitness</b>${S.G && S.G.ia ? ' · a gente lê os números' : ''}</span>`}</label><input type="file" id="runfile" class="hidefile" accept="image/*" data-file="run">
+  ${notaPrint(s)}
   <div class="note"><span>Vale <b>+35 pts</b> pro time e <b>+60 XP</b>. O pace alimenta o RIT do seu card.</span></div>
   <button class="btn block" data-a="logrun" ${need ? 'disabled' : ''}>${need ? 'Envie a evidência para registrar' : 'Registrar corrida'}</button>`; };
 /* O teclado numérico do iPhone não tem ":". A pessoa digita só os números e os ":" entram sozinhos, da direita
