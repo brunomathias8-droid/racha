@@ -111,7 +111,10 @@ function gastoEstimado(T) {
 
 /* ------------------------------ gráficos (SVG) ------------------------------ */
 /* Um valor por posição no eixo X. A dica (tooltip) mostra todas as séries daquela posição. */
-const GRAF = {}, GW = 340;
+const GRAF = {};
+/* Largura do desenho: em tela grande o gráfico ganha mais pontos, para o texto não crescer junto com a largura. */
+let GW = 340;
+const larguraGraf = () => (window.matchMedia && matchMedia('(min-width: 960px)').matches ? 620 : 340);
 function passoBonito(faixa, alvo) { const c = [0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]; return c.find(s => faixa / s <= alvo) || c[c.length - 1]; }
 function escalaY(vals, ref, zero) {
   let lo = Math.min(...vals), hi = Math.max(...vals);
@@ -144,7 +147,7 @@ function grafLinha(id, o) {
     if (li != null && li >= 0) corpo += `<circle cx="${xs(li)}" cy="${y(s.v[li])}" r="4.5" fill="${s.cor}" stroke="var(--s1)" stroke-width="2"/>` +
       (s.fim ? `<text x="${xs(li) + 8}" y="${y(s.v[li]) + 4}" class="ch-t ch-strong">${s.fim}</text>` : '');
   });
-  GRAF[id] = { titulo: o.titulo, x: xs, n, rows: i => [o.rotX(i), ...o.series.filter(s => s.v[i] != null).map(s => [s.cor, s.nome, o.fmtV(s.v[i])])] };
+  GRAF[id] = { titulo: o.titulo, w: GW, x: xs, n, rows: i => [o.rotX(i), ...o.series.filter(s => s.v[i] != null).map(s => [s.cor, s.nome, o.fmtV(s.v[i])])] };
   const lab = n > 1 ? [[xs(0), o.rotX(0), 'start'], [xs(n - 1), o.rotX(n - 1), 'end']] : [[xs(0), o.rotX(0)]];
   return moldura(id, H, y, sy, xs, lab, corpo);
 }
@@ -162,14 +165,14 @@ function grafColunas(id, o) {
   corpo += o.vals.map((v, i) => v == null ? '' : `<path d="${barra(xs(i), v)}" fill="${o.cor(v, i)}" ${o.parcial && o.parcial(i) ? 'opacity=".5"' : ''}/>`).join('');
   const li = o.vals.map((v, i) => v == null ? -1 : i).filter(i => i >= 0).pop();
   if (li >= 0 && o.rotFim) corpo += `<text x="${xs(li)}" y="${o.vals[li] >= 0 ? y(o.vals[li]) - 5 : y(o.vals[li]) + 12}" text-anchor="middle" class="ch-t ch-strong">${o.rotFim(o.vals[li])}</text>`;
-  GRAF[id] = { titulo: o.titulo, x: xs, n, rows: i => [o.rotX(i), ...(o.vals[i] == null ? [] : [[o.cor(o.vals[i], i), o.nome, o.fmtV(o.vals[i])]])] };
+  GRAF[id] = { titulo: o.titulo, w: GW, x: xs, n, rows: i => [o.rotX(i), ...(o.vals[i] == null ? [] : [[o.cor(o.vals[i], i), o.nome, o.fmtV(o.vals[i])]])] };
   const lab = n > 1 ? [[xs(0), o.rotX(0)], [xs(n - 1), o.rotX(n - 1)]] : [[xs(0), o.rotX(0)]];
   return moldura(id, H, y, sy, xs, lab, corpo);
 }
 /* Dica: a linha vertical acha a posição mais próxima do dedo; mostra a data e cada série. */
 function dicaGraf(e) {
   const box = e.target.closest('.ch'); if (!box) return; const c = GRAF[box.dataset.ch]; if (!c) return;
-  const svg = box.querySelector('svg'), r = svg.getBoundingClientRect(), xv = (e.clientX - r.left) * GW / r.width;
+  const svg = box.querySelector('svg'), r = svg.getBoundingClientRect(), xv = (e.clientX - r.left) * c.w / r.width;
   let i = 0, best = 1e9; for (let k = 0; k < c.n; k++) { const dd = Math.abs(c.x(k) - xv); if (dd < best) { best = dd; i = k; } }
   const ln = svg.querySelector('.ch-cross'), x = c.x(i); ln.setAttribute('x1', x); ln.setAttribute('x2', x); ln.style.display = '';
   const tip = box.querySelector('.ch-tip'), [rot, ...rows] = c.rows(i); tip.textContent = '';
@@ -177,7 +180,7 @@ function dicaGraf(e) {
   rows.forEach(([cor, nome, val]) => { const l = document.createElement('div'); l.className = 'ch-tip-r';
     const k = document.createElement('i'); k.style.background = cor; const b = document.createElement('b'); b.textContent = val; const s = document.createElement('span'); s.textContent = nome;
     l.append(k, b, s); tip.appendChild(l); });
-  tip.hidden = false; const pct = x / GW; tip.style.left = pct > 0.6 ? '' : `calc(${pct * 100}% + 8px)`; tip.style.right = pct > 0.6 ? `calc(${(1 - pct) * 100}% + 8px)` : '';
+  tip.hidden = false; const pct = x / c.w; tip.style.left = pct > 0.6 ? '' : `calc(${pct * 100}% + 8px)`; tip.style.right = pct > 0.6 ? `calc(${(1 - pct) * 100}% + 8px)` : '';
 }
 document.addEventListener('pointermove', e => { if (e.target.closest && e.target.closest('.ch')) dicaGraf(e); });
 document.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('.ch')) dicaGraf(e); });
@@ -307,6 +310,7 @@ function cardResultados() {
 function tile(rot, val, sub) { return `<div class="panel" style="gap:2px;padding:12px 14px"><span class="tiny muted">${rot}</span><span class="h3 num">${val}</span>${sub ? `<span class="tiny muted">${sub}</span>` : ''}</div>`; }
 
 SH.res = () => {
+  GW = larguraGraf();
   const R = resumoRes(), T = R.T, B = S.body;
   const topo = `${head('Resultados', 'Sua evolução')}<p class="tiny muted">${ic('lock', 13)} Só você vê estes dados. O grupo não tem acesso.</p>`;
   const botoes = `<div class="qa"><button class="btn" data-a="sheet" data-k="medida">${ic('plus', 16)} Registrar medidas</button><button class="btn ghost sm" data-a="sheet" data-k="medcfg">Altura e meta</button></div>`;
