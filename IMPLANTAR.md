@@ -62,7 +62,7 @@ Na aba **Config** da planilha, preencha **uma** das opções:
 | Opção | ia_provedor | ia_chave | Custo |
 |---|---|---|---|
 | Claude | `claude` | chave criada em console.anthropic.com › API Keys (precisa colocar créditos, mínimo US$ 5) | Alguns centavos de real por PDF; texto e foto do prato custam menos |
-| Gemini | `gemini` | chave criada em aistudio.google.com › Get API key | Grátis dentro da cota diária. No plano grátis, o Google pode usar os dados enviados para melhorar os modelos |
+| Gemini | `gemini` | chave criada em aistudio.google.com › Get API key | Grátis dentro da cota (por minuto e por dia, definida pelo Google no seu projeto). No plano grátis, o Google pode usar os dados enviados para melhorar os modelos. Modelo padrão: `gemini-flash-latest`, que acompanha o Flash mais novo |
 
 Depois, no Apps Script:
 
@@ -74,6 +74,8 @@ Depois, no Apps Script:
 A chave sai da planilha e vai para as Propriedades do script no primeiro uso.
 
 Limite de segurança: `ia_limite_dia` (padrão 40 leituras por pessoa por dia).
+
+Quando a IA responde "limite por minuto" (comum no plano grátis do Gemini), o servidor espera 20 s e tenta de novo, até 2 vezes. A leitura do PDF faz uma chamada por refeição, em lotes de 5.
 
 Modelos: por padrão o Claude usa o Haiku 5.5 (rápido e barato). Se quiser mais precisão na leitura do PDF, coloque `claude-sonnet-5-5` em `ia_modelo`.
 
