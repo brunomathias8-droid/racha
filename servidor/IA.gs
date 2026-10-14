@@ -6,7 +6,8 @@
  */
 var IA_PADRAO = {
   claude: { modelo: 'claude-haiku-5-5', rapido: 'claude-haiku-5-5' },
-  gemini: { modelo: 'gemini-2.5-flash', rapido: 'gemini-2.5-flash' }
+  // 'gemini-flash-latest' sempre aponta para o Flash mais novo (o gemini-2.5-flash sai do ar em 16/10/2026)
+  gemini: { modelo: 'gemini-flash-latest', rapido: 'gemini-flash-latest' }
 };
 
 function iaChave_() {
@@ -76,7 +77,7 @@ function iaDieta_(req) {
     return iaPedido_(false, IA_REGRAS_PLANO, [arq, { texto: 'Etapa 2, só a refeição "' + String(r.nome || '').slice(0, 40) + '" (' + (i + 1) + 'ª de ' + refs.length +
       ' do plano' + (r.hora ? ', ' + r.hora : '') + '). Formato: {"itens":[' + item + '],"alternativas":[{"nome":"Opção 2","itens":[' + IA_ITEM + ']}]}' }], 8000);
   });
-  var resps = UrlFetchApp.fetchAll(pedidos.map(function (p) { return p.req; })), falhas = [], primeiroErro = null;
+  var resps = iaBuscarTodos_(pedidos.map(function (p) { return p.req; })), falhas = [], primeiroErro = null;
   var refeicoes = refs.map(function (r, i) {
     var o = null;
     try { o = iaJson_(iaResposta_(resps[i], pedidos[i].modelo)); } catch (e) { primeiroErro = primeiroErro || e; }
@@ -182,7 +183,24 @@ function iaArquivo_(dataUrl, tipos, limiteMb) {
 /** partes: lista de { mime, b64, cache } (arquivo) ou { texto }. Devolve o texto da resposta. */
 function iaChamar_(rapido, instrucao, partes, maxTokens) {
   var p = iaPedido_(rapido, instrucao, partes, maxTokens);
-  return iaResposta_(UrlFetchApp.fetchAll([p.req])[0], p.modelo);
+  return iaResposta_(iaBuscarTodos_([p.req])[0], p.modelo);
+}
+
+/* Envia os pedidos juntos. Os que voltarem com "limite por minuto" (429) ou "sobrecarga" (503/529) esperam e
+   vão de novo, até 2 vezes: o plano grátis do Gemini aceita poucos pedidos por minuto e a leitura do PDF faz vários.
+   Lotes de no máximo 5 pedidos por vez. */
+function iaBuscarTodos_(reqs) {
+  var out = new Array(reqs.length), pend = reqs.map(function (_, i) { return i; });
+  for (var tent = 0; tent < 3 && pend.length; tent++) {
+    if (tent) Utilities.sleep(tent === 1 ? 20000 : 40000);
+    var prox = [];
+    for (var a = 0; a < pend.length; a += 5) {
+      var lote = pend.slice(a, a + 5), rs = UrlFetchApp.fetchAll(lote.map(function (i) { return reqs[i]; }));
+      rs.forEach(function (r, j) { var c = r.getResponseCode(), i = lote[j]; out[i] = r; if ((c === 429 || c === 503 || c === 529) && tent < 2) prox.push(i); });
+    }
+    pend = prox;
+  }
+  return out;
 }
 
 /** Monta o pedido: req no formato de UrlFetchApp.fetchAll, modelo para as mensagens de erro. arquivo.cache = true guarda o arquivo em cache na IA (várias perguntas sobre o mesmo PDF). */
@@ -206,7 +224,7 @@ function iaPedido_(rapido, instrucao, partes, maxTokens) {
     method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { 'x-goog-api-key': chave },
     payload: JSON.stringify({ systemInstruction: { parts: [{ text: instrucao }] },
       contents: [{ role: 'user', parts: partes.map(function (p) { return p.texto ? { text: p.texto } : { inline_data: { mime_type: p.mime, data: p.b64 } }; }) }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: maxTokens, responseMimeType: 'application/json' } }) } };
+      generationConfig: { temperature: 0.2, maxOutputTokens: Math.max(maxTokens * 2, 4000), responseMimeType: 'application/json' } }) } };
 }
 
 /** Lê a resposta da IA: devolve o texto ou lança um erro com a explicação para a pessoa. */
@@ -218,7 +236,7 @@ function iaResposta_(r, modelo) {
     try { var e = JSON.parse(txt).error || {}; det = String(e.message || '').slice(0, 200); } catch (x) { /* corpo não é JSON */ }
     if (/credit balance/i.test(det)) throw apiErro_('A conta da IA está sem créditos. Coloque créditos em console.anthropic.com › Billing.', 'IA');
     if (code === 401 || code === 403) throw apiErro_('A chave da IA foi recusada. Confira ia_chave na planilha.', 'IA');
-    if (code === 429) throw apiErro_('A IA está sem cota agora. Tente de novo em alguns minutos.', 'IA');
+    if (code === 429) throw apiErro_(prov === 'gemini' ? 'A cota grátis do Gemini acabou por agora. Tente de novo em alguns minutos (a cota diária renova de madrugada).' : 'A IA está sem cota agora. Tente de novo em alguns minutos.', 'IA');
     if (code === 404) throw apiErro_('Modelo de IA não encontrado (' + modelo + '). Ajuste ia_modelo na planilha.', 'IA');
     if (code === 413) throw apiErro_('Arquivo grande demais para a IA. Tente um PDF menor ou só as páginas do plano.', 'IA');
     if (code >= 500) throw apiErro_('A IA está sobrecarregada agora. Tente de novo em alguns minutos.', 'IA');
