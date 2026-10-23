@@ -4,5 +4,7 @@
  */
 window.RACHA_CONFIG = {
   api: 'https://script.google.com/macros/s/AKfycbzjwQKYfrDJdzrDYvSErKn8-fOaieZpYKG1-x020SwEvdLm6AeXT5dDsz8e48HdY0wT/exec',
-  intervaloSincSeg: 30
+  intervaloSincSeg: 30,
+  // false esconde a aba Racha (placar, liga, mano a mano, resenha) e os atalhos para ela. Nada é apagado: true traz tudo de volta.
+  racha: false
 };

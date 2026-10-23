@@ -106,7 +106,7 @@ function scrHoje() {
       ${S.carica ? `<button class="link" data-a="sheet" data-k="card">Ver meu card</button>` : `<button class="link" data-a="photo">${ic('camera', 15)} Colocar minha foto no card</button>`}
     </div>
   </div>
-  ${board()}
+  ${RACHA_ON ? board() : ''}
   ${sec('Lances de hoje')}
   <div class="stack">
     ${treinoRow}
@@ -252,7 +252,7 @@ function treinoSessao() {
     return `<div class="panel center"><p class="eb">${esc(w.name)} · ${esc(w.sub)}</p><p class="display c-good">Treino concluído</p>
       ${d.photo ? `<span class="chip good">${ic('camera', 14)} foto enviada como evidência</span>` : ''}
       <div class="grid3 num" style="width:100%"><div class="stat"><span class="eb">Volume</span><b>${fmt(d.vol)}</b><span class="tiny muted">kg</span></div><div class="stat"><span class="eb">Séries</span><b>${d.sets}</b></div><div class="stat"><span class="eb">PRs</span><b class="c-acc">${d.prs}</b></div></div>
-      <div class="qa" style="justify-content:center"><button class="btn ghost" data-a="go" data-tab="racha" data-rv="resenha">Ver na resenha</button><button class="btn ghost" data-a="sheet" data-k="wklist">Outro treino</button></div></div>`; }
+      <div class="qa" style="justify-content:center">${RACHA_ON ? '<button class="btn ghost" data-a="go" data-tab="racha" data-rv="resenha">Ver na resenha</button>' : ''}<button class="btn ghost" data-a="sheet" data-k="wklist">Outro treino</button></div></div>`; }
   const sug = S.sug[k] || {};
   return `
   <div class="panel">

@@ -17,10 +17,11 @@ function renderNav() {
   const n = $('#nav');
   if (!S.sessao) { n.innerHTML = ''; n.hidden = true; return; }
   n.hidden = false;
-  const T = [['hoje', 'Hoje', 'sun'], ['dieta', 'Dieta', 'bowl'], ['treino', 'Treino', 'dumbbell'], ['habitos', 'Hábitos', 'check'], ['racha', 'Racha', 'shield']];
+  const T = [['hoje', 'Hoje', 'sun'], ['dieta', 'Dieta', 'bowl'], ['treino', 'Treino', 'dumbbell'], ['habitos', 'Hábitos', 'check'], ['racha', 'Racha', 'shield']].filter(([k]) => SCR[k]);
   n.innerHTML = T.map(([k, l, i]) => `<button class="${S.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}" aria-current="${S.tab === k ? 'page' : 'false'}">${ic(i, 20)}${l}</button>`).join('');
 }
 const SCR = { hoje: scrHoje, dieta: scrDieta, treino: scrTreino, habitos: scrHabitos, racha: scrRacha };
+if (!RACHA_ON) delete SCR.racha;
 /* A sincronização redesenha a tela a cada 30 s: o campo em que a pessoa está digitando volta com o texto, o cursor e o teclado. */
 function campoEmFoco(root) {
   const a = document.activeElement;
@@ -34,6 +35,7 @@ function devolverFoco(root, c) {
 }
 function render(keep = true) {
   const m = $('#main'); if (!m) return; const y = m.scrollTop, foco = campoEmFoco(m);
+  if (!SCR[S.tab]) S.tab = 'hoje';
   try { m.innerHTML = S.sessao ? SCR[S.tab]() : telaLogin(); }
   catch (e) { console.error(e); m.innerHTML = `<div class="note warn"><span>Algo deu errado nesta tela: ${esc(e.message)}. Toque em outra aba ou feche e abra o app.</span></div>`; }
   m.scrollTop = keep ? y : 0; devolverFoco(m, foco); renderNav(); renderTop();
@@ -303,7 +305,7 @@ const A = {
     S.done[k] = { sets: r.sets, vol: r.vol, prs: r.prs, photo: !!s.photo, kcal: s.kcal || null }; if (s.kcal) h.kcalAtiv = (h.kcalAtiv || 0) + s.kcal; closeSheet(); clearInterval(S.restT); $('#restbar').hidden = true;
     h.trained = true; h.sets = (h.sets || 0) + r.sets; h.setsPlan = (h.setsPlan || 0) + ss.reduce((a, e) => a + e.sets.length, 0); h.prs = (h.prs || 0) + r.prs; h.min = (h.min || 0) + s.min; if (s.min >= 60) h.longas = (h.longas || 0) + 1;
     const txt = `${w.name} · ${w.sub} concluído${r.prs ? ` com ${r.prs} PR${r.prs > 1 ? 's' : ''}` : ''}`;
-    if (s.post !== false) { const cid = uidNovo(), texto = `${w.name} · ${w.sub} concluído. ${fmt(r.vol)} kg de volume${r.prs ? `, ${r.prs} PR${r.prs > 1 ? 's' : ''}` : ''}.`;
+    if (RACHA_ON && s.post !== false) { const cid = uidNovo(), texto = `${w.name} · ${w.sub} concluído. ${fmt(r.vol)} kg de volume${r.prs ? `, ${r.prs} PR${r.prs > 1 ? 's' : ''}` : ''}.`;
       S.feed.unshift({ id: S.eu + '-' + cid, who: 'u', ts: Date.now(), text: texto, scene: 'dumbbell', photo: s.photo || null, reacoes: { like: [], fire: [] }, coments: [], pending: true });
       enfileirar('postar', { id: cid, texto, cena: 'dumbbell', foto: s.photo || null }); }
     pushEvent(txt, 50 + Math.min(r.prs, 3) * 10, null, [['Treino de musculação concluído', 50], ...(r.prs ? [['Recorde pessoal × ' + Math.min(r.prs, 3), Math.min(r.prs, 3) * 10]] : [])], { kind: 'treino', ev: s.photo ? 'foto' : null, photo: s.photo || null, vol: Math.round(r.vol), prs: r.prs, min: s.min });

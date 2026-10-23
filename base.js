@@ -1,7 +1,8 @@
 /* base.js — estado, armazenamento no aparelho, API, fila offline, sincronização, virada do dia e cálculo dos atributos. */
 'use strict';
 
-const CFG = Object.assign({ api: '', intervaloSincSeg: 30 }, window.RACHA_CONFIG || {});
+const CFG = Object.assign({ api: '', intervaloSincSeg: 30, racha: true }, window.RACHA_CONFIG || {});
+const RACHA_ON = CFG.racha !== false;
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const INSTALADO = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -222,7 +223,7 @@ async function sincronizar(completo) {
     const r = await api('sync', { desde: completo ? 0 : Math.max(0, S.ultimaSinc - 5000) });
     aplicarSinc(r);
     const golDepois = placarAtual();
-    if (!completo && S.ultimaSinc && (golDepois.A > golAntes.A || golDepois.B > golAntes.B) && document.visibilityState === 'visible') {
+    if (RACHA_ON && !completo && S.ultimaSinc && (golDepois.A > golAntes.A || golDepois.B > golAntes.B) && document.visibilityState === 'visible') {
       const t = golDepois.A > golAntes.A ? 'A' : 'B';
       queue({ type: 'goal', txt: `Gol do ${teamName(t)}. ${t === myTeam() ? 'Seu time marcou.' : 'O rival marcou. Hora de responder.'}` });
     }
@@ -501,7 +502,7 @@ function pushEvent(txt, pts, key, calc, extra) {
   S.evMap.set(id, { ...ev, id, who: 'u', team: old ? old.team : t, pending: true, photo: foto || (old && old.photo) || null, ev: ev.ev || null, foto: old && old.foto });
   reordenarEventos();
   const depois = score(), gol = depois[t] > antes[t];
-  if (gol) queue({ type: 'goal', txt: `${txt}. Seu lance colocou o ${teamName(t)} ${depois[t] > depois[t === 'A' ? 'B' : 'A'] ? 'na frente' : 'no jogo'}.` });
+  if (gol && RACHA_ON) queue({ type: 'goal', txt: `${txt}. Seu lance colocou o ${teamName(t)} ${depois[t] > depois[t === 'A' ? 'B' : 'A'] ? 'na frente' : 'no jogo'}.` });
   // remove da fila uma versão anterior do mesmo lance ainda não enviada
   S.fila = S.fila.filter((f, i) => !(i > 0 && f.acao === 'lancar' && f.dados.ev.id === cid && !f.dados.foto));
   enfileirar('lancar', { ev, foto, gol: gol ? { time: t, placar: { A: depois.A, B: depois.B } } : null });
