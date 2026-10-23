@@ -1,7 +1,8 @@
 /* base.js — estado, armazenamento no aparelho, API, fila offline, sincronização, virada do dia e cálculo dos atributos. */
 'use strict';
 
-const CFG = Object.assign({ api: '', intervaloSincSeg: 30 }, window.RACHA_CONFIG || {});
+const CFG = Object.assign({ api: '', intervaloSincSeg: 30, racha: true }, window.RACHA_CONFIG || {});
+const RACHA_ON = CFG.racha !== false;
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const INSTALADO = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -222,7 +223,7 @@ async function sincronizar(completo) {
     const r = await api('sync', { desde: completo ? 0 : Math.max(0, S.ultimaSinc - 5000) });
     aplicarSinc(r);
     const golDepois = placarAtual();
-    if (!completo && S.ultimaSinc && (golDepois.A > golAntes.A || golDepois.B > golAntes.B) && document.visibilityState === 'visible') {
+    if (RACHA_ON && !completo && S.ultimaSinc && (golDepois.A > golAntes.A || golDepois.B > golAntes.B) && document.visibilityState === 'visible') {
       const t = golDepois.A > golAntes.A ? 'A' : 'B';
       queue({ type: 'goal', txt: `Gol do ${teamName(t)}. ${t === myTeam() ? 'Seu time marcou.' : 'O rival marcou. Hora de responder.'}` });
     }
@@ -400,7 +401,7 @@ const ATTR = {
   RES: { n: 'Resistência', what: 'Quanto volume de treino você sustenta por semana.', up: ['Beach tennis, futebol e corrida também contam minutos.', 'Uma sessão longa (60 min ou mais) por semana já sobe este atributo.'] },
   CON: { n: 'Consistência', what: 'Quanto você cumpre o plano de treino, sem olhar para carga ou velocidade.', up: ['Assiduidade vale mais que performance.', 'Cartões verdes protegem a sequência num dia ruim. Semana completa dá um cartão.'] },
   NUT: { n: 'Nutrição', what: 'Quanto você segue o plano alimentar da sua nutricionista.', up: ['Envie a dieta em PDF: sem plano, este atributo não sobe.', 'Registrar até o que saiu do plano conta para "refeições registradas".'] },
-  HAB: { n: 'Hábitos', what: 'Quanto dos hábitos que você escolheu você realmente cumpre.', up: ['Dia perfeito vale +15 pts para o time.', 'Hábitos pequenos (2 minutos) são os mais fáceis de manter.'] },
+  HAB: { n: 'Hábitos', what: 'Quanto dos hábitos que você escolheu você realmente cumpre.', up: [...(RACHA_ON ? ['Dia perfeito vale +15 pts para o time.'] : []), 'Hábitos pequenos (2 minutos) são os mais fáceis de manter.'] },
 };
 const KS = ['RIT', 'FOR', 'RES', 'CON', 'NUT', 'HAB'];
 const pc = (a, b) => b > 0 ? clamp(a / b, 0, 1) : 0;
@@ -501,7 +502,7 @@ function pushEvent(txt, pts, key, calc, extra) {
   S.evMap.set(id, { ...ev, id, who: 'u', team: old ? old.team : t, pending: true, photo: foto || (old && old.photo) || null, ev: ev.ev || null, foto: old && old.foto });
   reordenarEventos();
   const depois = score(), gol = depois[t] > antes[t];
-  if (gol) queue({ type: 'goal', txt: `${txt}. Seu lance colocou o ${teamName(t)} ${depois[t] > depois[t === 'A' ? 'B' : 'A'] ? 'na frente' : 'no jogo'}.` });
+  if (gol && RACHA_ON) queue({ type: 'goal', txt: `${txt}. Seu lance colocou o ${teamName(t)} ${depois[t] > depois[t === 'A' ? 'B' : 'A'] ? 'na frente' : 'no jogo'}.` });
   // remove da fila uma versão anterior do mesmo lance ainda não enviada
   S.fila = S.fila.filter((f, i) => !(i > 0 && f.acao === 'lancar' && f.dados.ev.id === cid && !f.dados.foto));
   enfileirar('lancar', { ev, foto, gol: gol ? { time: t, placar: { A: depois.A, B: depois.B } } : null });

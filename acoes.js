@@ -17,10 +17,11 @@ function renderNav() {
   const n = $('#nav');
   if (!S.sessao) { n.innerHTML = ''; n.hidden = true; return; }
   n.hidden = false;
-  const T = [['hoje', 'Hoje', 'sun'], ['dieta', 'Dieta', 'bowl'], ['treino', 'Treino', 'dumbbell'], ['habitos', 'Hábitos', 'check'], ['racha', 'Racha', 'shield']];
+  const T = [['hoje', 'Hoje', 'sun'], ['dieta', 'Dieta', 'bowl'], ['treino', 'Treino', 'dumbbell'], ['habitos', 'Hábitos', 'check'], ['racha', 'Racha', 'shield']].filter(([k]) => SCR[k]);
   n.innerHTML = T.map(([k, l, i]) => `<button class="${S.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}" aria-current="${S.tab === k ? 'page' : 'false'}">${ic(i, 20)}${l}</button>`).join('');
 }
 const SCR = { hoje: scrHoje, dieta: scrDieta, treino: scrTreino, habitos: scrHabitos, racha: scrRacha };
+if (!RACHA_ON) delete SCR.racha;
 /* A sincronização redesenha a tela a cada 30 s: o campo em que a pessoa está digitando volta com o texto, o cursor e o teclado. */
 function campoEmFoco(root) {
   const a = document.activeElement;
@@ -34,6 +35,7 @@ function devolverFoco(root, c) {
 }
 function render(keep = true) {
   const m = $('#main'); if (!m) return; const y = m.scrollTop, foco = campoEmFoco(m);
+  if (!SCR[S.tab]) S.tab = 'hoje';
   try { m.innerHTML = S.sessao ? SCR[S.tab]() : telaLogin(); }
   catch (e) { console.error(e); m.innerHTML = `<div class="note warn"><span>Algo deu errado nesta tela: ${esc(e.message)}. Toque em outra aba ou feche e abra o app.</span></div>`; }
   m.scrollTop = keep ? y : 0; devolverFoco(m, foco); renderNav(); renderTop();
@@ -110,7 +112,7 @@ function schedulePreviewsSafe() { if (typeof schedulePreviews === 'function') sc
 function doMeal(id, photo) { const m = S.meals.find(x => x.id === id); if (!m) return;
   m.items.forEach(it => S.log.push({ ...it, subs: undefined, meal: m.id })); m.done = true; m.photo = !!photo;
   mealEvent(m, photo); const nx = S.meals.find(x => !x.done); S.logMeal = nx ? nx.id : 'extra';
-  toast(regras().photo && !photo ? `${m.name} registrado · sem foto não pontua` : `${m.name} registrado · +5 pts`); addXP(15); checkMacros(); render(); }
+  toast(regras().photo && !photo ? `${m.name} registrado · sem foto não pontua` : `${m.name} registrado${RACHA_ON ? ' · +5 pts' : ''}`); addXP(15); checkMacros(); render(); }
 function evFinalize(photo) { const s = S.sheet; closeSheet();
   if (s.what === 'meal') { doMeal(s.id, photo); return; }
   const h = S.habits[s.i]; if (h.type !== 'count') { h.val = 1; addXP(10); } h.photo = !!photo; habitEvent(photo); render();
@@ -139,14 +141,14 @@ function habitEvent(foto) {
   const hn = {}; dn.forEach(h => hn[h.id] = h.name.split(' ·')[0]);
   pushEvent(perfect ? `Dia perfeito: ${dn.length} hábitos` : `${dn.length} hábito${dn.length === 1 ? '' : 's'} marcado${dn.length === 1 ? '' : 's'} hoje`, dn.length * 5 + (perfect ? 15 : 0), 'hab', null,
     { kind: 'habitos', habs: dn.map(h => h.id), hp: dn.filter(h => h.photo).map(h => h.id), perfect, hn, photo: foto || null });
-  if (perfect && !prev) { S.flags.perfect = true; toast('Dia perfeito. +15 pts pro time'); addXP(40); }
+  if (perfect && !prev) { S.flags.perfect = true; toast(RACHA_ON ? 'Dia perfeito. +15 pts pro time' : 'Dia perfeito'); addXP(40); }
   if (!perfect) S.flags.perfect = false;
 }
 function checkMacros() {
   if (!S.goals) return;
   const c = consumed(), g = S.goals, ok = Math.abs(c.kcal - g.kcal) <= g.kcal * .1 && c.p >= g.p * .9 && c.c <= g.c * 1.1 && c.f <= g.f * 1.1;
   if (ok && !S.flags.macros) { S.flags.macros = true; const dn = S.meals.filter(m => m.done && !m.skip);
-    pushEvent('Fechou os macros do dia', 25, 'macros', [['Dia dentro dos macros', 25]], { kind: 'macros', ev: dn.length && dn.every(m => m.photo) ? 'foto' : null }); addXP(50); toast('Macros fechados. +25 pts'); }
+    pushEvent('Fechou os macros do dia', 25, 'macros', [['Dia dentro dos macros', 25]], { kind: 'macros', ev: dn.length && dn.every(m => m.photo) ? 'foto' : null }); addXP(50); toast(RACHA_ON ? 'Macros fechados. +25 pts' : 'Macros fechados'); }
 }
 function addItensLog(itens, meal) { itens.forEach(it => S.log.push({ label: it.label, food: it.food || it.label, kcal: +it.kcal || 0, p: +it.p || 0, c: +it.c || 0, f: +it.f || 0, meal })); }
 async function lerComida(txt) {
@@ -213,7 +215,7 @@ const A = {
   logmeal: d => { S.logMeal = d.id; render(); },
   other: d => { S.logMeal = d.id; render(); const i = $('#logtxt'); i.focus(); i.scrollIntoView({ block: 'center' }); },
   ateplan: d => { if (regras().photo) openSheet({ k: 'evid', what: 'meal', id: d.id }); else doMeal(d.id, null); },
-  mealdone: d => { const m = S.meals.find(x => x.id === d.id); m.done = true; const nx = S.meals.find(x => !x.done); S.logMeal = nx ? nx.id : 'extra'; toast(`${m.name} registrado fora do plano. Conta para o NUT, não para o placar.`); checkMacros(); render(); },
+  mealdone: d => { const m = S.meals.find(x => x.id === d.id); m.done = true; const nx = S.meals.find(x => !x.done); S.logMeal = nx ? nx.id : 'extra'; toast(`${m.name} registrado fora do plano. Conta para o NUT${RACHA_ON ? ', não para o placar' : ''}.`); checkMacros(); render(); },
   mealskip: d => { const m = S.meals.find(x => x.id === d.id); if (!m) return;
     S.log = S.log.filter(i => i.meal !== m.id); m.done = true; m.skip = true; m.photo = null; mealEventDel(m); proximaRefeicao();
     toast(`${m.name}: marcada como pulada`); render(); },
@@ -303,7 +305,7 @@ const A = {
     S.done[k] = { sets: r.sets, vol: r.vol, prs: r.prs, photo: !!s.photo, kcal: s.kcal || null }; if (s.kcal) h.kcalAtiv = (h.kcalAtiv || 0) + s.kcal; closeSheet(); clearInterval(S.restT); $('#restbar').hidden = true;
     h.trained = true; h.sets = (h.sets || 0) + r.sets; h.setsPlan = (h.setsPlan || 0) + ss.reduce((a, e) => a + e.sets.length, 0); h.prs = (h.prs || 0) + r.prs; h.min = (h.min || 0) + s.min; if (s.min >= 60) h.longas = (h.longas || 0) + 1;
     const txt = `${w.name} · ${w.sub} concluído${r.prs ? ` com ${r.prs} PR${r.prs > 1 ? 's' : ''}` : ''}`;
-    if (s.post !== false) { const cid = uidNovo(), texto = `${w.name} · ${w.sub} concluído. ${fmt(r.vol)} kg de volume${r.prs ? `, ${r.prs} PR${r.prs > 1 ? 's' : ''}` : ''}.`;
+    if (RACHA_ON && s.post !== false) { const cid = uidNovo(), texto = `${w.name} · ${w.sub} concluído. ${fmt(r.vol)} kg de volume${r.prs ? `, ${r.prs} PR${r.prs > 1 ? 's' : ''}` : ''}.`;
       S.feed.unshift({ id: S.eu + '-' + cid, who: 'u', ts: Date.now(), text: texto, scene: 'dumbbell', photo: s.photo || null, reacoes: { like: [], fire: [] }, coments: [], pending: true });
       enfileirar('postar', { id: cid, texto, cena: 'dumbbell', foto: s.photo || null }); }
     pushEvent(txt, 50 + Math.min(r.prs, 3) * 10, null, [['Treino de musculação concluído', 50], ...(r.prs ? [['Recorde pessoal × ' + Math.min(r.prs, 3), Math.min(r.prs, 3) * 10]] : [])], { kind: 'treino', ev: s.photo ? 'foto' : null, photo: s.photo || null, vol: Math.round(r.vol), prs: r.prs, min: s.min });
@@ -311,7 +313,7 @@ const A = {
   sdur: d => { S.sheet.dur = +d.v; renderSheet(); },
   logsport: () => { const s = S.sheet, h = hd(); S.sportsLog.unshift({ sport: s.v, dur: s.dur, pse: s.pse, day: S.day, kcal: s.kcal || null }); if (s.kcal) h.kcalAtiv = (h.kcalAtiv || 0) + s.kcal;
     h.trained = true; h.sport = true; h.min = (h.min || 0) + s.dur; if (s.dur >= 60) h.longas = (h.longas || 0) + 1;
-    closeSheet(); pushEvent(`${s.v} · ${s.dur} min`, 35, null, [['Corrida ou outro esporte', 35]], { kind: 'esporte', ev: s.photo ? 'foto' : null, photo: s.photo || null, min: s.dur }); addXP(60); toast(`${s.v} registrado. +35 pts`); render(); },
+    closeSheet(); pushEvent(`${s.v} · ${s.dur} min`, 35, null, [['Corrida ou outro esporte', 35]], { kind: 'esporte', ev: s.photo ? 'foto' : null, photo: s.photo || null, min: s.dur }); addXP(60); toast(`${s.v} registrado${RACHA_ON ? '. +35 pts' : ''}`); render(); },
   runrt: d => { S.sheet.rt = d.v; renderSheet(); },
   logrun: () => { const s = S.sheet, km = parseFloat(String(s.km || ($('#runkm') || {}).value || '').replace(',', '.')), sec = parseTempo(s.tempo || ($('#runtempo') || {}).value);
     if (!(km > 0 && km < 300) || !(sec > 60)) { toast('Preencha distância e tempo'); return; }
@@ -319,7 +321,7 @@ const A = {
     S.runs.push({ day: S.day, ts: Date.now(), km, sec, fc, rt: s.rt, ev: !!s.photo, kcal: s.kcal || null }); if (s.kcal) h.kcalAtiv = (h.kcalAtiv || 0) + s.kcal;
     h.trained = true; h.runs = (h.runs || 0) + 1; h.km = (h.km || 0) + km; h.min = (h.min || 0) + Math.round(sec / 60); if (sec >= 3600) h.longas = (h.longas || 0) + 1;
     closeSheet(); pushEvent(`${s.rt} de ${fmt(km, 1)} km · ${pace(sec / km)}/km`, 35, null, [['Corrida ou outro esporte', 35]], { kind: 'corrida', ev: s.photo ? 'foto' : null, photo: s.photo || null, km, sec });
-    addXP(60); toast(`Corrida registrada. +35 pts`); S.tab = 'treino'; S.tv = 'corrida'; render(false); },
+    addXP(60); toast(`Corrida registrada${RACHA_ON ? '. +35 pts' : ''}`); S.tab = 'treino'; S.tv = 'corrida'; render(false); },
   // hábitos
   hcheck: d => { const h = S.habits[+d.i]; if (!h.val && regras().photo && N_habConta(regras(), h.id)) { openSheet({ k: 'evid', what: 'habit', i: +d.i }); return; }
     h.val = h.val ? 0 : 1; if (!h.val) h.photo = null; if (h.val) addXP(10); habitEvent(); render(); },
