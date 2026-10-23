@@ -557,13 +557,12 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   let recarregou = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (recarregou) return; recarregou = true; if (!S.sheet) location.reload(); });
 }
-/* iPhone com o app na tela de início: o sistema informa uma altura menor que a tela e o app parava antes do fim, deixando uma faixa vazia
-   embaixo. A altura da tela (screen) é a real; usa a maior das duas. */
+/* iPhone com o app na tela de início: às vezes o sistema entrega uma área menor que a tela e ela já termina acima da barrinha de gesto.
+   Nesse caso o menu não precisa reservar o espaço da barrinha (ficava uma faixa vazia dupla embaixo). */
 function ajustarAltura() {
-  const st = $('.stage'); if (!st || !IOS || !INSTALADO()) return;
+  const app = $('#app'); if (!app || !IOS || !INSTALADO()) return;
   const tela = innerHeight >= innerWidth ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
-  const h = Math.max(innerHeight, tela);
-  st.style.bottom = 'auto'; st.style.height = h + 'px';
+  app.classList.toggle('curta', tela - innerHeight > 20);
 }
 ajustarAltura();
 window.addEventListener('resize', ajustarAltura);
