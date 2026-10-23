@@ -557,4 +557,15 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   let recarregou = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (recarregou) return; recarregou = true; if (!S.sheet) location.reload(); });
 }
+/* iPhone com o app na tela de início: o sistema informa uma altura menor que a tela e o app parava antes do fim, deixando uma faixa vazia
+   embaixo. A altura da tela (screen) é a real; usa a maior das duas. */
+function ajustarAltura() {
+  const st = $('.stage'); if (!st || !IOS || !INSTALADO()) return;
+  const tela = innerHeight >= innerWidth ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
+  const h = Math.max(innerHeight, tela);
+  st.style.bottom = 'auto'; st.style.height = h + 'px';
+}
+ajustarAltura();
+window.addEventListener('resize', ajustarAltura);
+window.addEventListener('orientationchange', () => setTimeout(ajustarAltura, 300));
 /* iniciar() é chamado no fim do index.html, depois de carregar todos os arquivos. */
