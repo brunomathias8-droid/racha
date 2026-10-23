@@ -188,12 +188,15 @@ SH.mealedit = s => { const m = S.meals.find(x => x.id === s.id); if (!m) return 
 SH.plate = s => { const pend = S.meals.filter(m => !m.done); s.meal = s.meal || S.logMeal || (pend[0] || { id: 'extra' }).id;
   if (s.step !== 'ok') return `${head('Foto do prato', s.erro ? 'Não deu certo' : 'Analisando…')}<div class="ph-box"><img src="${s.img}" alt="Foto enviada"></div>
     ${s.erro ? `<div class="note warn"><span>${esc(s.erro)}</span></div>` : `<div class="stage-list"><div class="stg run"><i></i>Identificando alimentos e estimando porções</div></div>`}`;
-  const tot = s.itens.reduce((a, i) => a + i.kcal, 0);
-  return `${head('Foto do prato', 'Estimativa')}<div class="ph-box"><img src="${s.img}" alt="Foto enviada"></div>
-  <div class="stack">${s.itens.map((i, j) => `<div class="between small"><span>${esc(i.label)} <span class="muted num">· ${fmt(i.kcal)} kcal</span></span><button class="sq" data-a="platedel" data-i="${j}" aria-label="Tirar ${esc(i.label)}">${ic('x', 14)}</button></div>`).join('')}</div>
-  <div class="between"><span class="eb">Total · confiança ${esc(s.conf || 'média')}</span><b class="num">${fmt(tot)} kcal</b></div>
+  return `${head('Foto do prato', 'Confira e ajuste')}<div class="ph-box"><img src="${s.img}" alt="Foto enviada"></div>
+  <div class="stack">${s.itens.map((i, j) => { const g = gramasItem(i);
+    return `<div class="hrow" style="flex-wrap:nowrap;gap:6px"><input class="in" style="flex:1;min-width:0;padding:8px" value="${esc(g ? i.food || i.label : i.label)}" id="platenome-${j}" data-i="platenome" data-pi="${j}" aria-label="Alimento" enterkeyhint="done">
+      ${g ? `<input class="in num" style="width:72px;padding:8px" inputmode="decimal" value="${fmt(g)}" id="plateg-${j}" data-i="plateg" data-pi="${j}" aria-label="Gramas de ${esc(i.food || i.label)}"><span class="tiny muted">g</span>` : `<span class="tiny muted num" style="white-space:nowrap">${fmt(i.kcal)} kcal</span>`}
+      <button class="sq" data-a="platedel" data-i="${j}" aria-label="Tirar ${esc(i.food || i.label)}">${ic('x', 14)}</button></div>`; }).join('')}</div>
+  <form class="hrow" style="flex-wrap:nowrap;gap:6px" data-f="plateadd"><input class="in" style="flex:1;min-width:0;padding:8px" id="plateaddtxt" placeholder="Faltou algo? Ex.: 1 col. azeite" enterkeyhint="done"><button class="btn ghost sm" ${S.iaOcupada ? 'disabled' : ''}>${S.iaOcupada ? 'Lendo…' : 'Adicionar'}</button></form>
+  <div class="between"><span class="eb">Total · confiança ${esc(s.conf || 'média')}</span><b class="num" id="platetot">${platoTotal(s.itens)}</b></div>
   <div class="chips">${[...pend, { id: 'extra', name: 'Fora do plano' }].map(m => `<button class="chip ${s.meal === m.id ? 'on' : ''}" data-a="pmeal" data-id="${m.id}">${esc(m.name)}</button>`).join('')}</div>
-  <p class="tiny muted">Estimativa por IA. Tire o que não comeu antes de salvar. A foto vale como evidência da refeição.</p><button class="btn block" data-a="plateok" ${s.itens.length ? '' : 'disabled'}>Adicionar</button>`; };
+  <p class="tiny muted">Estimativa por IA. Corrija o alimento, as gramas ou tire o que não comeu antes de salvar. A foto vale como evidência da refeição.</p><button class="btn block" data-a="plateok" ${s.itens.length ? '' : 'disabled'}>Adicionar</button>`; };
 SH.swap = s => { const m = S.meals.find(x => x.id === s.id), cur = m.items[s.i], L = swapsFor(cur);
   return `${head(esc(m.name), 'Trocar ' + esc((cur.food || cur.label).toLowerCase()))}<div class="note"><span>Atual: <b>${esc(cur.label)}</b> · ${fmt(cur.kcal)} kcal · ${fmt(cur.p)}P ${fmt(cur.c)}C ${fmt(cur.f)}G</span></div>
   <div class="stack">${L.map((o, j) => `<button class="row" data-a="doswap" data-i="${j}"><span class="tile">${ic('bowl', 18)}</span><span><span class="t">${esc(o.it.label)}</span><span class="s num">${o.plano ? 'Do seu plano · ' : ''}${fmt(o.it.kcal)} kcal · ${fmt(o.it.p)}P ${fmt(o.it.c)}C ${fmt(o.it.f)}G</span></span><span class="chev">${ic('chev', 18)}</span></button>`).join('')}</div>

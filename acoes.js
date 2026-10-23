@@ -128,6 +128,13 @@ function mealEventDel(m) {
   S.fila = S.fila.filter((f, i) => !(i > 0 && f.acao === 'lancar' && f.dados.ev.id === cid)); enfileirar('excluirEvento', { id });
 }
 /* Gramas de um item lançado: campo g ou o número antes de "g" no texto ("150 g · Frango", "Pão (50 g)"). */
+/* Muda as gramas de um item e recalcula os macros na mesma proporção. */
+function escalarItem(it, g) {
+  const g0 = gramasItem(it); if (!g0 || !(g > 0) || g > 5000) return false;
+  const k = g / g0; ['kcal', 'p', 'c', 'f'].forEach(x => it[x] = (+it[x] || 0) * k); it.g = g;
+  it.label = /(\d+(?:[.,]\d+)?)\s*g\b/.test(it.label) ? it.label.replace(/(\d+(?:[.,]\d+)?)\s*g\b/, fmt(g) + ' g') : `${it.label} (${fmt(g)} g)`;
+  return true;
+}
 function gramasItem(it) { if (+it.g > 0) return +it.g; const x = String(it.label).match(/(\d+(?:[.,]\d+)?)\s*g\b/); return x ? parseFloat(x[1].replace(',', '.')) : null; }
 function proximaRefeicao() { const nx = S.meals.find(x => !x.done); S.logMeal = nx ? nx.id : 'extra'; }
 /* foto: a foto que acabou de comprovar um hábito (vai junto com o lance; o servidor guarda a última). */
@@ -150,7 +157,16 @@ function checkMacros() {
   if (ok && !S.flags.macros) { S.flags.macros = true; const dn = S.meals.filter(m => m.done && !m.skip);
     pushEvent('Fechou os macros do dia', 25, 'macros', [['Dia dentro dos macros', 25]], { kind: 'macros', ev: dn.length && dn.every(m => m.photo) ? 'foto' : null }); addXP(50); toast(RACHA_ON ? 'Macros fechados. +25 pts' : 'Macros fechados'); }
 }
-function addItensLog(itens, meal) { itens.forEach(it => S.log.push({ label: it.label, food: it.food || it.label, kcal: +it.kcal || 0, p: +it.p || 0, c: +it.c || 0, f: +it.f || 0, meal })); }
+/* Foto do prato: a pessoa reescreve um item ("arroz integral", "2 ovos") e ele é lido de novo (TACO, depois IA). Sem quantidade, mantém as gramas. */
+async function trocarItemPrato(i, txt) {
+  const s = S.sheet, it = s.itens[i]; if (!it || !txt || txt === it.food || txt === it.label) return;
+  const g = gramasItem(it), r = await lerComida(/\d/.test(txt) || !g ? txt : `${fmt(g)} g ${txt}`);
+  if (S.sheet !== s) return;
+  if (r.itens.length) s.itens.splice(i, 1, ...r.itens); else toast(`Não reconheci "${txt}". Tente com a quantidade, ex.: 120 g arroz integral.`);
+  renderSheet();
+}
+const platoTotal = itens => `${fmt(itens.reduce((a, i) => a + (+i.kcal || 0), 0))} kcal · ${fmt(itens.reduce((a, i) => a + (+i.p || 0), 0))} g de proteína`;
+function addItensLog(itens, meal) { itens.forEach(it => S.log.push({ label: it.label, food: it.food || it.label, g: +it.g || undefined, kcal: +it.kcal || 0, p: +it.p || 0, c: +it.c || 0, f: +it.f || 0, meal })); }
 async function lerComida(txt) {
   const { ok, miss } = parseFood(txt);
   if (!miss.length || !(S.G && S.G.ia) || !navigator.onLine) return { itens: ok, nao: miss };
@@ -407,6 +423,10 @@ document.addEventListener('submit', async e => { e.preventDefault(); const f = e
     inp.value = ''; inp.blur(); addItensLog(r.itens, meal); addXP(10);
     toast(`${r.itens.length} ${r.itens.length > 1 ? 'itens lançados' : 'item lançado'} · ${fmt(r.itens.reduce((a, i) => a + (+i.kcal || 0), 0))} kcal${r.nao.length ? ` · não entendi: ${r.nao.join(', ')}` : ''}`, 4000);
     checkMacros(); render(); marcarMudanca(); }
+  if (f === 'plateadd') { const v = ($('#plateaddtxt') || {}).value.trim(); if (!v || !S.sheet || S.sheet.k !== 'plate') return; const s = S.sheet, r = await lerComida(v);
+    if (S.sheet !== s) return;
+    if (!r.itens.length) { toast('Não reconheci esse alimento. Tente "150g frango".'); renderSheet(); return; }
+    const pa = $('#plateaddtxt'); if (pa) { pa.value = ''; pa.blur(); } s.itens.push(...r.itens); if (r.nao.length) toast('Não entendi: ' + r.nao.join(', ')); renderSheet(); return; }
   if (f === 'mealadd') { const v = ($('#mealaddtxt') || {}).value.trim(); if (!v || !S.sheet) return; const id = S.sheet.id, r = await lerComida(v);
     if (!r.itens.length) { toast('Não reconheci esse alimento. Tente "150g frango".'); renderSheet(); return; }
     const ma = $('#mealaddtxt'); if (ma) { ma.value = ''; ma.blur(); } addItensLog(r.itens, id); if (r.nao.length) toast('Não entendi: ' + r.nao.join(', ')); renderSheet(); marcarMudanca(); }
@@ -436,16 +456,17 @@ document.addEventListener('input', e => { const t = e.target, d = t.dataset; if 
   else if (d.i === 'runkm' || d.i === 'runtempo' || d.i === 'runfc') {
     if (d.i === 'runtempo') { const f = fmtTempo(t.value); if (f !== t.value) { t.value = f; t.setSelectionRange(f.length, f.length); } }
     S.sheet[d.i.slice(3)] = t.value; const km = parseFloat(String(S.sheet.km || '').replace(',', '.')), sec = parseTempo(S.sheet.tempo), o = $('#runpace'); if (o) o.innerHTML = km > 0 && sec > 0 ? `Pace: <b>${pace(sec / km)}/km</b>` : 'Preencha distância e tempo para ver o pace.'; }
-  else if (d.i === 'logg') { const it = S.log[+t.dataset.li], g0 = it && gramasItem(it), g = parseFloat(String(t.value).replace(',', '.'));
-    if (it && g0 && g > 0 && g <= 5000) { const k = g / g0; ['kcal', 'p', 'c', 'f'].forEach(x => it[x] = (+it[x] || 0) * k); it.g = g;
-      it.label = /(\d+(?:[.,]\d+)?)\s*g\b/.test(it.label) ? it.label.replace(/(\d+(?:[.,]\d+)?)\s*g\b/, fmt(g) + ' g') : `${it.label} (${fmt(g)} g)`;
-      const o = $('#mealtot'), its = S.log.filter(i => i.meal === S.sheet.id); if (o) o.textContent = `${fmt(its.reduce((a, i) => a + i.kcal, 0))} kcal · ${fmt(its.reduce((a, i) => a + i.p, 0))} g de proteína`; } }
+  else if (d.i === 'logg') { const it = S.log[+t.dataset.li];
+    if (it && escalarItem(it, num())) { const o = $('#mealtot'), its = S.log.filter(i => i.meal === S.sheet.id); if (o) o.textContent = `${fmt(its.reduce((a, i) => a + i.kcal, 0))} kcal · ${fmt(its.reduce((a, i) => a + i.p, 0))} g de proteína`; } }
+  else if (d.i === 'plateg') { const it = S.sheet.itens[+d.pi]; if (it && escalarItem(it, num())) { const o = $('#platetot'); if (o) o.textContent = platoTotal(S.sheet.itens); } }
   else if (d.i === 'rungoal') S.runGoal = t.value.slice(0, 80);
   else if (d.i === 'anaage') S.anaTmp.d.age = parseInt(t.value, 10) || null; else if (d.i === 'anafc') S.anaTmp.d.fcmax = parseInt(t.value, 10) || null;
   else if (d.i === 'mname' || d.i === 'mtime') { const m = S.meals.find(x => x.id === S.sheet.id); if (d.i === 'mname') m.name = t.value.slice(0, 40) || 'Refeição'; else { m.time = t.value || m.time; S.meals.sort((a, b) => a.time.localeCompare(b.time)); } }
   if (S.sessao) marcarMudanca();
 });
-document.addEventListener('change', async e => { const t = e.target, k = t.dataset.file; if (!k || !t.files || !t.files[0]) return; const file = t.files[0]; t.value = '';
+document.addEventListener('change', async e => { const t = e.target;
+  if (t.dataset.i === 'platenome' && S.sheet && S.sheet.k === 'plate') { trocarItemPrato(+t.dataset.pi, t.value.trim()); return; }
+  const k = t.dataset.file; if (!k || !t.files || !t.files[0]) return; const file = t.files[0]; t.value = '';
   try {
     if (k === 'diet') {
       if (file.size > 15 * 1024 * 1024) { toast('Arquivo grande demais (máximo 15 MB).'); return; }
