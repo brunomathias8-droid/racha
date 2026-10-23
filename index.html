@@ -544,6 +544,12 @@ ol.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;f
 
 /* ---------- tela grande (computador, tablet deitado) ---------- */
 @keyframes pop{from{opacity:0;transform:translate(-50%,-48%)}}
+/* No celular, o que sobrar abaixo do app (área do gesto de início do iPhone) tem a cor do menu, não a do fundo escuro do computador. */
+@media (max-width:959px){
+  html:has(.app[data-theme="a"]),html:has(.app[data-theme="a"]) body{background:#F4EFF8}
+  html:has(.app[data-theme="b"]),html:has(.app[data-theme="b"]) body{background:#FFFDF4}
+  html:has(.app[data-theme="c"]),html:has(.app[data-theme="c"]) body{background:#0E1428}
+}
 @media (min-width:960px){
   .app{max-width:1240px;display:grid;grid-template-columns:232px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"top top" "nav main";box-shadow:0 0 0 1px var(--line)}
   .top{grid-area:top;padding:18px 32px 12px 24px}

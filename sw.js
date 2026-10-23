@@ -1,5 +1,5 @@
 /* sw.js — faz o app abrir sem internet e mostra as notificações. Troque VERSAO a cada publicação para os aparelhos receberem a nova versão. */
-const VERSAO = 'racha-v1.3.4';
+const VERSAO = 'racha-v1.3.5';
 const CASCA = ['./', 'index.html', 'config.js', 'nucleo.js', 'motor.js', 'receitas.js', 'base.js', 'telas.js', 'paineis.js', 'acoes.js', 'resultados.js', 'push.js',
   'manifest.webmanifest', 'icones/icone.svg', 'icones/icone-192.png', 'icones/apple-touch-icon.png'];
 
@@ -25,10 +25,10 @@ self.addEventListener('fetch', e => {
     }));
     return;
   }
-  // Casca do app: rede primeiro (pega atualizações), cache se estiver sem internet (espera no máximo 4 s)
+  // Casca do app: rede primeiro, sem o cache de 10 min do GitHub Pages (pega atualizações na hora), cache se estiver sem internet (espera no máximo 4 s)
   if (url.origin === self.location.origin) {
     const doCache = () => caches.match(req, { ignoreSearch: true }).then(c => c || (req.mode === 'navigate' ? caches.match('index.html') : null));
-    const rede = fetch(req).then(r => { if (r.ok) { const cp = r.clone(); caches.open(VERSAO).then(c => c.put(req, cp)); } return r; });
+    const rede = fetch(req, { cache: 'no-cache' }).then(r => { if (r.ok) { const cp = r.clone(); caches.open(VERSAO).then(c => c.put(req, cp)); } return r; });
     e.respondWith(Promise.race([rede, new Promise(res => setTimeout(() => res(null), 4000))])
       .then(async r => r || (await doCache()) || rede)
       .catch(async () => (await doCache()) || Response.error()));
