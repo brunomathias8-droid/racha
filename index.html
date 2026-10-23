@@ -575,6 +575,9 @@ ol.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;f
 
 /* ---------- app instalado (PWA) ---------- */
 html,body{overscroll-behavior:none}
+/* iOS 26 com o app na tela de início entrega uma área mais curta que a tela (falta a altura da barra de status; bug 301108 do WebKit) e não
+   desenha nada fixo abaixo dela. Só uma altura mínima na página faz o iPhone entregar a tela inteira. O min() evita rolagem com barra de status opaca. */
+@media (display-mode: standalone){html{min-height:min(100lvh,calc(100% + env(safe-area-inset-top)))}}
 body{background:var(--stage)}
 .app{padding-top:env(safe-area-inset-top)}
 nav{padding-bottom:max(6px,env(safe-area-inset-bottom))!important}
