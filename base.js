@@ -401,7 +401,7 @@ const ATTR = {
   RES: { n: 'Resistência', what: 'Quanto volume de treino você sustenta por semana.', up: ['Beach tennis, futebol e corrida também contam minutos.', 'Uma sessão longa (60 min ou mais) por semana já sobe este atributo.'] },
   CON: { n: 'Consistência', what: 'Quanto você cumpre o plano de treino, sem olhar para carga ou velocidade.', up: ['Assiduidade vale mais que performance.', 'Cartões verdes protegem a sequência num dia ruim. Semana completa dá um cartão.'] },
   NUT: { n: 'Nutrição', what: 'Quanto você segue o plano alimentar da sua nutricionista.', up: ['Envie a dieta em PDF: sem plano, este atributo não sobe.', 'Registrar até o que saiu do plano conta para "refeições registradas".'] },
-  HAB: { n: 'Hábitos', what: 'Quanto dos hábitos que você escolheu você realmente cumpre.', up: ['Dia perfeito vale +15 pts para o time.', 'Hábitos pequenos (2 minutos) são os mais fáceis de manter.'] },
+  HAB: { n: 'Hábitos', what: 'Quanto dos hábitos que você escolheu você realmente cumpre.', up: [...(RACHA_ON ? ['Dia perfeito vale +15 pts para o time.'] : []), 'Hábitos pequenos (2 minutos) são os mais fáceis de manter.'] },
 };
 const KS = ['RIT', 'FOR', 'RES', 'CON', 'NUT', 'HAB'];
 const pc = (a, b) => b > 0 ? clamp(a / b, 0, 1) : 0;

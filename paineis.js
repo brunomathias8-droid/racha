@@ -262,7 +262,7 @@ SH.finish = s => { const k = S.active, w = W[k], r = resumoSessao(k), need = reg
   <input type="file" id="wkphoto" class="hidefile" accept="image/*" data-file="wk">
   ${notaPrint(s)}
   ${RACHA_ON ? `<div class="between"><span class="small">Postar na resenha</span><button class="tog ${s.post !== false ? 'on' : ''}" data-a="togpost" aria-label="Postar na resenha" aria-pressed="${s.post !== false}"></button></div>` : ''}
-  <div class="note"><span>Vale <b>+50 pts</b> pro ${esc(teamName(myTeam()))}${r.prs ? ` e <b>+${Math.min(r.prs, 3) * 10}</b> pelos PRs` : ''}. XP: <b>+${120 + r.prs * 30}</b>.</span></div>
+  <div class="note"><span>${RACHA_ON ? `Vale <b>+50 pts</b> pro ${esc(teamName(myTeam()))}${r.prs ? ` e <b>+${Math.min(r.prs, 3) * 10}</b> pelos PRs` : ''}. ` : ''}XP: <b>+${120 + r.prs * 30}</b>.</span></div>
   <button class="btn block" data-a="finish" ${need || r.sets === 0 ? 'disabled' : ''}>${need ? 'Envie a foto para concluir' : 'Concluir treino'}</button>`; };
 SH.sport = s => { const sp = SPORTS.find(x => x.n === s.v) || SPORTS[5]; s.dur = s.dur || 60; s.pse = s.pse || 6; const need = regras().photo && !s.photo;
   return `${head('Registrar', sp.n)}<p class="eb">Duração</p><div class="chips">${[...new Set([30, 45, 60, 90, 120, s.dur])].sort((a, b) => a - b).map(d => `<button class="chip ${s.dur === d ? 'on' : ''}" data-a="sdur" data-v="${d}">${d} min</button>`).join('')}</div>
