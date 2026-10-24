@@ -109,12 +109,19 @@ async function comprimir(file, max = 1280, q = .74) {
 function schedulePreviewsSafe() { if (typeof schedulePreviews === 'function') schedulePreviews(); }
 
 /* ============ lances do dia ============ */
-function doMeal(id, photo) { const m = S.meals.find(x => x.id === id); if (!m) return;
-  m.items.forEach(it => S.log.push({ ...it, subs: undefined, meal: m.id })); m.done = true; m.photo = !!photo;
+function doMeal(id, photo, itens) { const m = S.meals.find(x => x.id === id); if (!m) return;
+  (itens || m.items).forEach(it => S.log.push({ ...it, subs: undefined, meal: m.id })); m.done = true; m.photo = !!photo;
   mealEvent(m, photo); const nx = S.meals.find(x => !x.done); S.logMeal = nx ? nx.id : 'extra';
   toast(regras().photo && !photo ? `${m.name} registrado · sem foto não pontua` : `${m.name} registrado${RACHA_ON ? ' · +5 pts' : ''}`); addXP(15); checkMacros(); render(); }
+/* Refeição com outras opções no plano (PDF): a pessoa escolhe qual comeu e, item a item, as substituições do plano. Vale só para hoje. */
+const opcoesRef = m => [{ name: 'Opção principal', items: m.items }, ...(m.alts || [])];
+const temOpcoes = m => (m.alts || []).length > 0 || m.items.some(i => (i.subs || []).length);
+function itensEscolhidos(s) {
+  const m = S.meals.find(x => x.id === s.id), op = opcoesRef(m)[s.o] || opcoesRef(m)[0];
+  return op.items.map((it, i) => { const v = s.sel[i] || 0; return v ? { ...it.subs[v - 1] } : it; });
+}
 function evFinalize(photo) { const s = S.sheet; closeSheet();
-  if (s.what === 'meal') { doMeal(s.id, photo); return; }
+  if (s.what === 'meal') { doMeal(s.id, photo, s.itens); return; }
   const h = S.habits[s.i]; if (h.type !== 'count') { h.val = 1; addXP(10); } h.photo = !!photo; habitEvent(photo); render();
   toast(photo ? 'Hábito comprovado: conta no placar' : 'Marcado só para sua sequência'); }
 /* Um lance por refeição por dia (chave ref-<id>): lançar de novo atualiza o mesmo lance; reabrir ou pular apaga. */
@@ -230,7 +237,12 @@ const A = {
   // dieta
   logmeal: d => { S.logMeal = d.id; render(); },
   other: d => { S.logMeal = d.id; render(); const i = $('#logtxt'); i.focus(); i.scrollIntoView({ block: 'center' }); },
-  ateplan: d => { if (regras().photo) openSheet({ k: 'evid', what: 'meal', id: d.id }); else doMeal(d.id, null); },
+  ateplan: d => { const m = S.meals.find(x => x.id === d.id); if (!m) return;
+    if (temOpcoes(m)) { openSheet({ k: 'comi', id: m.id, o: 0, sel: [] }); return; }
+    if (regras().photo) openSheet({ k: 'evid', what: 'meal', id: d.id }); else doMeal(d.id, null); },
+  comiop: d => { S.sheet.o = +d.v; S.sheet.sel = []; renderSheet(); },
+  comiok: () => { const s = S.sheet, itens = itensEscolhidos(s); if (!itens.length) return;
+    if (regras().photo) openSheet({ k: 'evid', what: 'meal', id: s.id, itens }); else { closeSheet(); doMeal(s.id, null, itens); } },
   mealdone: d => { const m = S.meals.find(x => x.id === d.id); m.done = true; const nx = S.meals.find(x => !x.done); S.logMeal = nx ? nx.id : 'extra'; toast(`${m.name} registrado fora do plano. Conta para o NUT${RACHA_ON ? ', não para o placar' : ''}.`); checkMacros(); render(); },
   mealskip: d => { const m = S.meals.find(x => x.id === d.id); if (!m) return;
     S.log = S.log.filter(i => i.meal !== m.id); m.done = true; m.skip = true; m.photo = null; mealEventDel(m); proximaRefeicao();
@@ -465,6 +477,7 @@ document.addEventListener('input', e => { const t = e.target, d = t.dataset; if 
   if (S.sessao) marcarMudanca();
 });
 document.addEventListener('change', async e => { const t = e.target;
+  if (t.dataset.i === 'comisub' && S.sheet && S.sheet.k === 'comi') { S.sheet.sel[+t.dataset.ci] = +t.value; renderSheet(); return; }
   if (t.dataset.i === 'platenome' && S.sheet && S.sheet.k === 'plate') { trocarItemPrato(+t.dataset.pi, t.value.trim()); return; }
   const k = t.dataset.file; if (!k || !t.files || !t.files[0]) return; const file = t.files[0]; t.value = '';
   try {
