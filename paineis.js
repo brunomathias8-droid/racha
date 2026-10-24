@@ -197,6 +197,16 @@ SH.plate = s => { const pend = S.meals.filter(m => !m.done); s.meal = s.meal || 
   <div class="between"><span class="eb">Total · confiança ${esc(s.conf || 'média')}</span><b class="num" id="platetot">${platoTotal(s.itens)}</b></div>
   <div class="chips">${[...pend, { id: 'extra', name: 'Fora do plano' }].map(m => `<button class="chip ${s.meal === m.id ? 'on' : ''}" data-a="pmeal" data-id="${m.id}">${esc(m.name)}</button>`).join('')}</div>
   <p class="tiny muted">Estimativa por IA. Corrija o alimento, as gramas ou tire o que não comeu antes de salvar. A foto vale como evidência da refeição.</p><button class="btn block" data-a="plateok" ${s.itens.length ? '' : 'disabled'}>Adicionar</button>`; };
+SH.comi = s => { const m = S.meals.find(x => x.id === s.id), ops = opcoesRef(m), op = ops[s.o] || ops[0], its = itensEscolhidos(s);
+  const k = x => its.reduce((a, i) => a + (+i[x] || 0), 0);
+  return `${head(esc(m.name), 'O que você comeu?')}
+  ${ops.length > 1 ? `<p class="eb">Opção do plano</p><div class="chips">${ops.map((o, j) => `<button class="chip ${s.o === j ? 'on' : ''}" data-a="comiop" data-v="${j}">${esc(o.name || 'Opção ' + (j + 1))}</button>`).join('')}</div>` : ''}
+  <div class="stack">${op.items.map((it, i) => (it.subs || []).length
+    ? `<label class="stack" style="gap:4px"><span class="tiny muted">Item ${i + 1} · troque pelo que o plano permite</span><select class="in" id="comisub-${i}" data-i="comisub" data-ci="${i}">${[it, ...it.subs].map((x, v) => `<option value="${v}" ${(s.sel[i] || 0) === v ? 'selected' : ''}>${esc(x.label)} · ${fmt(x.kcal)} kcal</option>`).join('')}</select></label>`
+    : `<div class="between small"><span>${esc(it.label)}</span><span class="muted num">${fmt(it.kcal)} kcal</span></div>`).join('')}</div>
+  <div class="between"><span class="eb">Total</span><b class="num">${fmt(k('kcal'))} kcal · ${fmt(k('p'))}P ${fmt(k('c'))}C ${fmt(k('f'))}G</b></div>
+  <p class="tiny muted">Vale só para hoje: o plano continua igual. Comeu algo que não está no plano? Use "Comi outra coisa".</p>
+  <button class="btn block" data-a="comiok">Registrar</button>`; };
 SH.swap = s => { const m = S.meals.find(x => x.id === s.id), cur = m.items[s.i], L = swapsFor(cur);
   return `${head(esc(m.name), 'Trocar ' + esc((cur.food || cur.label).toLowerCase()))}<div class="note"><span>Atual: <b>${esc(cur.label)}</b> · ${fmt(cur.kcal)} kcal · ${fmt(cur.p)}P ${fmt(cur.c)}C ${fmt(cur.f)}G</span></div>
   <div class="stack">${L.map((o, j) => `<button class="row" data-a="doswap" data-i="${j}"><span class="tile">${ic('bowl', 18)}</span><span><span class="t">${esc(o.it.label)}</span><span class="s num">${o.plano ? 'Do seu plano · ' : ''}${fmt(o.it.kcal)} kcal · ${fmt(o.it.p)}P ${fmt(o.it.c)}C ${fmt(o.it.f)}G</span></span><span class="chev">${ic('chev', 18)}</span></button>`).join('')}</div>
